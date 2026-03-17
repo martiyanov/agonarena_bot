@@ -22,17 +22,21 @@ async def show_scenarios(message: Message) -> None:
     await message.answer("\n".join(lines), parse_mode="Markdown")
 
 
-@router.message(F.text == "⚔️ Начать поединок")
-async def start_duel_from_menu(message: Message) -> None:
+async def _start_duel(message: Message, scenario_code: str | None = None) -> None:
     async with AsyncSessionLocal() as session:
-        scenarios = await ScenarioService().list_active(session)
-        if not scenarios:
-            await message.answer("Нет доступных сценариев для старта поединка.")
+        duel_service = DuelService()
+        if scenario_code:
+            scenario = await duel_service.get_scenario_by_code(session, scenario_code)
+        else:
+            scenarios = await ScenarioService().list_active(session)
+            scenario = scenarios[0] if scenarios else None
+
+        if scenario is None:
+            await message.answer("Не удалось подобрать сценарий для старта поединка.")
             return
 
-        scenario = scenarios[0]
-        duel = await DuelService().create_duel(session, telegram_user_id=message.from_user.id, scenario=scenario)
-        rounds = await DuelService().get_duel_rounds(session, duel.id)
+        duel = await duel_service.create_duel(session, telegram_user_id=message.from_user.id, scenario=scenario)
+        rounds = await duel_service.get_duel_rounds(session, duel.id)
 
     lines = [
         f"Поединок создан: #{duel.id}",
@@ -43,6 +47,16 @@ async def start_duel_from_menu(message: Message) -> None:
         "Дальше подключу пошаговый duel flow поверх этого старта.",
     ]
     await message.answer("\n".join(lines))
+
+
+@router.message(F.text == "⚔️ Начать поединок")
+async def start_duel_from_menu(message: Message) -> None:
+    await _start_duel(message)
+
+
+@router.message(F.text.regexp(r"^[a-z_]+$"))
+async def start_duel_by_scenario_code(message: Message) -> None:
+    await _start_duel(message, scenario_code=message.text.strip())
 
 
 @router.message(F.text == "ℹ️ Как это работает")
