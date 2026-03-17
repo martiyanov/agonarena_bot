@@ -1,12 +1,18 @@
-from sqlalchemy import select
+from datetime import datetime
+
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Duel, DuelRound, Scenario
+from app.db.models import Duel, DuelMessage, DuelRound, JudgeResult, Scenario
 
 
 class DuelService:
     async def get_scenario_by_code(self, session: AsyncSession, code: str) -> Scenario | None:
         result = await session.execute(select(Scenario).where(Scenario.code == code, Scenario.is_active.is_(True)))
+        return result.scalar_one_or_none()
+
+    async def get_scenario_by_id(self, session: AsyncSession, scenario_id: int) -> Scenario | None:
+        result = await session.execute(select(Scenario).where(Scenario.id == scenario_id))
         return result.scalar_one_or_none()
 
     async def create_duel(self, session: AsyncSession, telegram_user_id: int, scenario: Scenario) -> Duel:
@@ -45,8 +51,86 @@ class DuelService:
         await session.refresh(duel)
         return duel
 
+    async def get_duel(self, session: AsyncSession, duel_id: int) -> Duel | None:
+        result = await session.execute(select(Duel).where(Duel.id == duel_id))
+        return result.scalar_one_or_none()
+
     async def get_duel_rounds(self, session: AsyncSession, duel_id: int) -> list[DuelRound]:
         result = await session.execute(
             select(DuelRound).where(DuelRound.duel_id == duel_id).order_by(DuelRound.round_number.asc())
+        )
+        return list(result.scalars().all())
+
+    async def get_latest_duel_for_user(self, session: AsyncSession, telegram_user_id: int) -> Duel | None:
+        result = await session.execute(
+            select(Duel).where(Duel.user_telegram_id == telegram_user_id).order_by(desc(Duel.id)).limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_round(self, session: AsyncSession, duel_id: int, round_number: int) -> DuelRound | None:
+        result = await session.execute(
+            select(DuelRound).where(
+                DuelRound.duel_id == duel_id,
+                DuelRound.round_number == round_number,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def ensure_round_started(self, duel: Duel, round_obj: DuelRound) -> None:
+        if duel.status == "ready":
+            duel.status = "in_progress"
+        if round_obj.status == "pending":
+            round_obj.status = "in_progress"
+            round_obj.started_at = datetime.utcnow()
+
+    async def list_messages_for_round(self, session: AsyncSession, duel_id: int, round_number: int) -> list[DuelMessage]:
+        result = await session.execute(
+            select(DuelMessage)
+            .where(
+                DuelMessage.duel_id == duel_id,
+                DuelMessage.round_number == round_number,
+            )
+            .order_by(DuelMessage.id.asc())
+        )
+        return list(result.scalars().all())
+
+    async def add_message(
+        self,
+        session: AsyncSession,
+        duel_id: int,
+        round_number: int,
+        author: str,
+        content: str,
+    ) -> DuelMessage:
+        message = DuelMessage(
+            duel_id=duel_id,
+            round_number=round_number,
+            author=author,
+            content=content,
+        )
+        session.add(message)
+        await session.flush()
+        return message
+
+    async def complete_round(self, duel: Duel, round_obj: DuelRound) -> None:
+        round_obj.status = "finished"
+        if round_obj.started_at is None:
+            round_obj.started_at = datetime.utcnow()
+        round_obj.finished_at = datetime.utcnow()
+
+        if round_obj.round_number == 1:
+            duel.current_round_number = 2
+            duel.status = "in_progress"
+        else:
+            duel.status = "judging"
+
+    async def finish_duel(self, duel: Duel, final_verdict: str) -> None:
+        duel.status = "finished"
+        duel.final_verdict = final_verdict
+        duel.updated_at = datetime.utcnow()
+
+    async def list_judge_results(self, session: AsyncSession, duel_id: int) -> list[JudgeResult]:
+        result = await session.execute(
+            select(JudgeResult).where(JudgeResult.duel_id == duel_id).order_by(JudgeResult.id.asc())
         )
         return list(result.scalars().all())

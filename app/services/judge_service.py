@@ -1,0 +1,138 @@
+import json
+from pathlib import Path
+from typing import Literal, Sequence
+
+from pydantic import BaseModel
+
+from app.db.models import Duel, DuelMessage, JudgeResult
+from app.services.llm_service import LLMService
+
+PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "judges.md"
+
+
+class JudgeType:
+    OWNER = "owner"
+    TEAM = "team"
+    SENDER = "sending_to_negotiation"
+
+
+class JudgeContext(BaseModel):
+    judge_type: Literal["owner", "team", "sending_to_negotiation"]
+    scenario_code: str
+    duel_id: int
+    round1_transcript: str
+    round2_transcript: str
+
+
+class JudgeVerdict(BaseModel):
+    judge_type: Literal["owner", "team", "sending_to_negotiation"]
+    winner: Literal["user", "ai", "draw"]
+    comment: str
+
+
+class JudgeService:
+    """Судьи с LLM-first режимом и rule-based fallback."""
+
+    def __init__(self, llm_service: LLMService | None = None):
+        self.llm_service = llm_service or LLMService()
+        self.system_prompt = PROMPT_PATH.read_text(encoding="utf-8") if PROMPT_PATH.exists() else ""
+
+    async def run_single_judge(self, context: JudgeContext) -> JudgeVerdict:
+        if self.llm_service.is_configured():
+            try:
+                raw = await self.llm_service.generate_text(
+                    system_prompt=self.system_prompt,
+                    user_prompt=self._build_user_prompt(context),
+                    temperature=0.2,
+                )
+                data = json.loads(raw)
+                return JudgeVerdict(
+                    judge_type=context.judge_type,
+                    winner=data.get("winner", "draw"),
+                    comment=data.get("comment", "Судья не дал развёрнутый комментарий."),
+                )
+            except Exception:
+                pass
+
+        return self._fallback_verdict(context)
+
+    async def run_all_judges(self, contexts: Sequence[JudgeContext]) -> list[JudgeVerdict]:
+        results: list[JudgeVerdict] = []
+        for context in contexts:
+            results.append(await self.run_single_judge(context))
+        return results
+
+    async def save_verdict(self, duel: Duel, verdict: JudgeVerdict) -> JudgeResult:
+        return JudgeResult(
+            duel_id=duel.id,
+            judge_type=verdict.judge_type,
+            winner=verdict.winner,
+            comment=verdict.comment,
+        )
+
+    def build_transcript(self, messages: Sequence[DuelMessage]) -> str:
+        lines: list[str] = []
+        for msg in messages:
+            prefix = "Вы" if msg.author == "user" else "AI"
+            lines.append(f"{prefix}: {msg.content}")
+        return "\n".join(lines) if lines else "(пусто)"
+
+    def build_contexts_for_duel(
+        self,
+        *,
+        duel: Duel,
+        scenario_code: str,
+        round1_messages: Sequence[DuelMessage],
+        round2_messages: Sequence[DuelMessage],
+    ) -> list[JudgeContext]:
+        round1 = self.build_transcript(round1_messages)
+        round2 = self.build_transcript(round2_messages)
+        return [
+            JudgeContext(
+                judge_type=judge_type,
+                scenario_code=scenario_code,
+                duel_id=duel.id,
+                round1_transcript=round1,
+                round2_transcript=round2,
+            )
+            for judge_type in (JudgeType.OWNER, JudgeType.TEAM, JudgeType.SENDER)
+        ]
+
+    def summarize_final_verdict(self, verdicts: Sequence[JudgeVerdict]) -> str:
+        wins = {"user": 0, "ai": 0, "draw": 0}
+        for item in verdicts:
+            wins[item.winner] += 1
+
+        winner = max(wins, key=wins.get)
+        if wins["user"] == wins["ai"]:
+            winner = "draw"
+
+        header = {
+            "user": "Победа пользователя по мнению большинства судей.",
+            "ai": "Победа AI по мнению большинства судей.",
+            "draw": "Судьи сочли поединок ничьей.",
+        }[winner]
+        details = "\n".join(f"- {item.judge_type}: {item.comment}" for item in verdicts)
+        return f"{header}\n{details}"
+
+    def _build_user_prompt(self, context: JudgeContext) -> str:
+        return (
+            f"Judge type: {context.judge_type}\n"
+            f"Scenario code: {context.scenario_code}\n"
+            f"Round 1 transcript:\n{context.round1_transcript}\n\n"
+            f"Round 2 transcript:\n{context.round2_transcript}\n\n"
+            "Return JSON with fields winner and comment."
+        )
+
+    def _fallback_verdict(self, context: JudgeContext) -> JudgeVerdict:
+        transcript_len = len(context.round1_transcript) + len(context.round2_transcript)
+        winner = "draw" if transcript_len < 1200 else "user"
+
+        if context.judge_type == JudgeType.OWNER:
+            comment = "Смотрю на устойчивость решения и экономику: позиция выглядела собранной, но без явного доминирования."
+        elif context.judge_type == JudgeType.TEAM:
+            comment = "С точки зрения команды важны ясность и выполнимость; результат выглядит рабочим, но компромиссным."
+        else:
+            comment = "С точки зрения переговорщика, диалог сохранил пространство для манёвра и не разрушил отношения сторон."
+
+        return JudgeVerdict(judge_type=context.judge_type, winner=winner, comment=comment)

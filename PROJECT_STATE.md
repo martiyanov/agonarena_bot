@@ -28,20 +28,28 @@
   - Scenario
   - Duel
   - DuelRound
+  - DuelMessage
   - JudgeResult
 - sqlite tables are created on startup
+- scenario seed strategy implemented via `seeds/scenarios.json`
+- duel lifecycle service implemented
+- round generation logic implemented
+- telegram start / menu flow implemented
+- round message persistence implemented
+- next round transition implemented
+- duel finish + judge pipeline implemented
+- API endpoints added for duel lifecycle
+- prompts added for AI opponent and judges
+- LLM-first / fallback execution added for opponent and judges
 
 ### In progress
-- service layer for duel lifecycle
-- scenario loading / seed strategy
-- first usable duel creation flow
+- light cleanup / test pass
 
 ### Next
-1. add duel service
-2. create round generation logic
-3. define judge pipeline contract
-4. add first scenario seeds
-5. add telegram start / menu flow
+1. add automated tests for duel lifecycle
+2. improve judge heuristics and scoring rubric
+3. improve telegram UX with scenario selection buttons instead of code entry
+4. add richer duel analytics and history
 
 ## Local commits so far
 - 05bad53 chore: initialize agonarena bot scaffold
