@@ -58,7 +58,7 @@ class OpponentService:
             f"AI role: {context.ai_role}\n"
             f"Opening line: {context.opening_line}\n"
             f"Transcript:\n{transcript}\n\n"
-            "Generate the next AI reply in character."
+            "Generate the next AI reply in character. Reply in Russian."
         )
 
     def _transcript(self, history: Sequence[DuelMessage]) -> str:

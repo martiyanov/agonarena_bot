@@ -33,6 +33,12 @@ class JudgeVerdict(BaseModel):
 class JudgeService:
     """Судьи с LLM-first режимом и rule-based fallback."""
 
+    JUDGE_LABELS = {
+        JudgeType.OWNER: "собственник",
+        JudgeType.TEAM: "команда",
+        JudgeType.SENDER: "отправляющий на переговоры",
+    }
+
     def __init__(self, llm_service: LLMService | None = None):
         self.llm_service = llm_service or LLMService()
         self.system_prompt = PROMPT_PATH.read_text(encoding="utf-8") if PROMPT_PATH.exists() else ""
@@ -112,7 +118,9 @@ class JudgeService:
             "ai": "Победа AI по мнению большинства судей.",
             "draw": "Судьи сочли поединок ничьей.",
         }[winner]
-        details = "\n".join(f"- {item.judge_type}: {item.comment}" for item in verdicts)
+        details = "\n".join(
+            f"- {self.JUDGE_LABELS.get(item.judge_type, item.judge_type)}: {item.comment}" for item in verdicts
+        )
         return f"{header}\n{details}"
 
     def _build_user_prompt(self, context: JudgeContext) -> str:
@@ -121,7 +129,7 @@ class JudgeService:
             f"Scenario code: {context.scenario_code}\n"
             f"Round 1 transcript:\n{context.round1_transcript}\n\n"
             f"Round 2 transcript:\n{context.round2_transcript}\n\n"
-            "Return JSON with fields winner and comment."
+            "Return JSON with fields winner and comment. Comment must be in Russian."
         )
 
     def _fallback_verdict(self, context: JudgeContext) -> JudgeVerdict:
