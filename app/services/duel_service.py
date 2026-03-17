@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,8 +16,9 @@ class DuelService:
         return result.scalar_one_or_none()
 
     async def create_duel(self, session: AsyncSession, telegram_user_id: int, scenario: Scenario) -> Duel:
+        now = datetime.utcnow()
         duel = Duel(
-            status="ready",
+            status="in_progress",
             scenario_id=scenario.id,
             user_telegram_id=telegram_user_id,
             current_round_number=1,
@@ -33,10 +34,11 @@ class DuelService:
         round_1 = DuelRound(
             duel_id=duel.id,
             round_number=1,
-            status="pending",
+            status="in_progress",
             user_role=scenario.role_a_name,
             ai_role=scenario.role_b_name,
             opening_line=scenario.opening_line_b,
+            started_at=now,
         )
         round_2 = DuelRound(
             duel_id=duel.id,
@@ -82,6 +84,21 @@ class DuelService:
         if round_obj.status == "pending":
             round_obj.status = "in_progress"
             round_obj.started_at = datetime.utcnow()
+
+    def get_round_deadline(self, duel: Duel, round_obj: DuelRound) -> datetime | None:
+        if round_obj.started_at is None:
+            return None
+        return round_obj.started_at + timedelta(seconds=duel.turn_time_limit_sec)
+
+    def get_seconds_left(self, duel: Duel, round_obj: DuelRound) -> int | None:
+        deadline = self.get_round_deadline(duel, round_obj)
+        if deadline is None:
+            return None
+        return max(0, int((deadline - datetime.utcnow()).total_seconds()))
+
+    def is_round_expired(self, duel: Duel, round_obj: DuelRound) -> bool:
+        deadline = self.get_round_deadline(duel, round_obj)
+        return deadline is not None and datetime.utcnow() >= deadline
 
     async def list_messages_for_round(self, session: AsyncSession, duel_id: int, round_number: int) -> list[DuelMessage]:
         result = await session.execute(

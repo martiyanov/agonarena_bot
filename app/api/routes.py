@@ -46,12 +46,14 @@ async def start_duel(scenario_code: str, telegram_user_id: int = 127583377) -> d
             "duel_id": duel.id,
             "status": duel.status,
             "scenario": scenario.code,
+            "turn_time_limit_sec": duel.turn_time_limit_sec,
             "rounds": [
                 {
                     "round_number": item.round_number,
                     "user_role": item.user_role,
                     "ai_role": item.ai_role,
                     "opening_line": item.opening_line,
+                    "seconds_left": duel_service.get_seconds_left(duel, item),
                 }
                 for item in rounds
             ],
@@ -73,6 +75,7 @@ async def get_duel(duel_id: int) -> dict:
             "duel_id": duel.id,
             "status": duel.status,
             "current_round_number": duel.current_round_number,
+            "turn_time_limit_sec": duel.turn_time_limit_sec,
             "final_verdict": duel.final_verdict,
             "rounds": [
                 {
@@ -81,6 +84,7 @@ async def get_duel(duel_id: int) -> dict:
                     "user_role": item.user_role,
                     "ai_role": item.ai_role,
                     "opening_line": item.opening_line,
+                    "seconds_left": duel_service.get_seconds_left(duel, item),
                 }
                 for item in rounds
             ],
@@ -107,6 +111,11 @@ async def submit_turn(duel_id: int, payload: TurnRequest) -> dict:
             raise HTTPException(status_code=404, detail="Round not found")
 
         await duel_service.ensure_round_started(duel, round_obj)
+        if duel_service.is_round_expired(duel, round_obj):
+            await duel_service.complete_round(duel, round_obj)
+            await session.commit()
+            raise HTTPException(status_code=409, detail="Round timer expired")
+
         await duel_service.add_message(session, duel.id, round_obj.round_number, "user", payload.text)
         history = await duel_service.list_messages_for_round(session, duel.id, round_obj.round_number)
         opponent_service = OpponentService()
@@ -128,6 +137,7 @@ async def submit_turn(duel_id: int, payload: TurnRequest) -> dict:
             "duel_id": duel.id,
             "round_number": round_obj.round_number,
             "status": duel.status,
+            "seconds_left": duel_service.get_seconds_left(duel, round_obj),
             "ai_reply": ai_reply,
         }
 
@@ -155,11 +165,13 @@ async def next_round(duel_id: int) -> dict:
             "duel_id": duel.id,
             "status": duel.status,
             "current_round_number": duel.current_round_number,
+            "turn_time_limit_sec": duel.turn_time_limit_sec,
             "next_round": {
                 "round_number": round_2.round_number,
                 "user_role": round_2.user_role,
                 "ai_role": round_2.ai_role,
                 "opening_line": round_2.opening_line,
+                "seconds_left": duel_service.get_seconds_left(duel, round_2),
             },
         }
 

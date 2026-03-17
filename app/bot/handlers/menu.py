@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import tempfile
 from pathlib import Path
 
@@ -28,6 +29,10 @@ MENU_TEXTS = {
 }
 
 
+def _timer_hint(seconds: int) -> str:
+    return f"⏱ На раунд: {seconds} сек."
+
+
 @router.message(F.text == "📚 Сценарии")
 async def show_scenarios(message: Message) -> None:
     async with AsyncSessionLocal() as session:
@@ -54,7 +59,7 @@ async def _start_duel(message: Message, scenario_code: str | None = None) -> Non
             scenario = await duel_service.get_scenario_by_code(session, scenario_code)
         else:
             scenarios = await ScenarioService().list_active(session)
-            scenario = scenarios[0] if scenarios else None
+            scenario = random.choice(scenarios) if scenarios else None
 
         if scenario is None:
             await message.answer("Не удалось подобрать сценарий для старта поединка.")
@@ -66,10 +71,11 @@ async def _start_duel(message: Message, scenario_code: str | None = None) -> Non
     lines = [
         f"Поединок создан: #{duel.id}",
         f"Сценарий: {scenario.title}",
+        _timer_hint(duel.turn_time_limit_sec),
         f"Раунд 1: вы — {rounds[0].user_role}, AI — {rounds[0].ai_role}",
         f"Стартовая реплика AI: {rounds[0].opening_line}",
         "",
-        "Дальше: нажмите «✍️ Сделать ход», отправьте текст или голосовое сообщение, затем при желании перейдите в следующий раунд кнопкой «⏭️ Следующий раунд».",
+        "Дальше: нажмите «✍️ Сделать ход», отправьте текст или голосовое сообщение. Если время выйдет, раунд автоматически считается закрытым при следующем действии.",
     ]
     await message.answer("\n".join(lines))
 
@@ -99,6 +105,15 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
             return
 
         await duel_service.ensure_round_started(duel, round_obj)
+        if duel_service.is_round_expired(duel, round_obj):
+            await duel_service.complete_round(duel, round_obj)
+            await session.commit()
+            if round_obj.round_number == 1:
+                await message.answer("⏱ Время первого раунда вышло. Нажмите «⏭️ Следующий раунд», чтобы продолжить.")
+            else:
+                await message.answer("⏱ Время второго раунда вышло. Нажмите «🏁 Завершить поединок», чтобы получить вердикт судей.")
+            return
+
         await duel_service.add_message(
             session,
             duel_id=duel.id,
@@ -196,6 +211,7 @@ async def go_to_next_round(message: Message) -> None:
 
     await message.answer(
         "Раунд 1 завершён. Начинаем раунд 2 со сменой ролей.\n"
+        f"{_timer_hint(duel.turn_time_limit_sec)}\n"
         f"Теперь вы — {round_2.user_role}, AI — {round_2.ai_role}.\n"
         f"Стартовая реплика AI: {round_2.opening_line}"
     )
@@ -258,6 +274,7 @@ async def my_results(message: Message) -> None:
         f"Последний поединок: #{duel.id}",
         f"Статус: {duel.status}",
         f"Текущий раунд: {duel.current_round_number}",
+        _timer_hint(duel.turn_time_limit_sec),
     ]
     for round_obj in rounds:
         lines.append(f"- Раунд {round_obj.round_number}: {round_obj.status} ({round_obj.user_role} vs {round_obj.ai_role})")
@@ -276,7 +293,7 @@ async def how_it_works(message: Message) -> None:
     await message.answer(
         "Формат MVP: 2 раунда, во втором раунде смена ролей, затем три судьи выносят итог. "
         "Поток такой: старт поединка → ходы в раунде 1 → «Следующий раунд» → ходы в раунде 2 → «Завершить поединок». "
-        "Ход можно отправить и текстом, и голосовым сообщением."
+        "Ход можно отправить и текстом, и голосовым сообщением. На каждый раунд даётся 90 секунд."
     )
 
 
