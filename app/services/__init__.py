@@ -3,6 +3,7 @@ from app.services.judge_service import JudgeContext, JudgeService, JudgeType, Ju
 from app.services.llm_service import LLMService
 from app.services.opponent_service import OpponentService, OpponentTurnContext
 from app.services.scenario_service import ScenarioService
+from app.services.transcription_service import TranscriptionService
 
 __all__ = [
     "DuelService",
@@ -14,4 +15,5 @@ __all__ = [
     "LLMService",
     "OpponentService",
     "OpponentTurnContext",
+    "TranscriptionService",
 ]

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
     llm_model: str = "gpt-4.1-mini"
+    stt_model: str = "whisper-1"
 
     log_level: str = "INFO"
 
