@@ -114,7 +114,10 @@ async def submit_turn(duel_id: int, payload: TurnRequest) -> dict:
             OpponentTurnContext(
                 scenario_title=scenario.title if scenario else "",
                 scenario_description=scenario.description if scenario else "",
-                round=round_obj,
+                round_number=round_obj.round_number,
+                user_role=round_obj.user_role,
+                ai_role=round_obj.ai_role,
+                opening_line=round_obj.opening_line,
                 history=history,
             )
         )

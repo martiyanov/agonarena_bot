@@ -1,20 +1,29 @@
 from pathlib import Path
 from typing import Sequence
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
-from app.db.models import DuelMessage, DuelRound
+from app.db.models import DuelMessage
 from app.services.llm_service import LLMService
 
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "opponent.md"
 
 
 class OpponentTurnContext(BaseModel):
-    """Контекст для генерации ответа AI-оппонента."""
+    """Контекст для генерации ответа AI-оппонента.
+
+    Здесь только примитивы, без прямых ссылок на ORM-модели, чтобы не плодить
+    pydantic-схемы для SQLAlchemy-типов.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     scenario_title: str = ""
     scenario_description: str = ""
-    round: DuelRound
+    round_number: int
+    user_role: str
+    ai_role: str
+    opening_line: str
     history: Sequence[DuelMessage]
 
 
@@ -34,6 +43,7 @@ class OpponentService:
                     temperature=0.8,
                 )
             except Exception:
+                # На любых ошибках LLM не роняем поединок, а уходим в fallback.
                 pass
 
         return self._fallback_reply(context)
@@ -43,10 +53,10 @@ class OpponentService:
         return (
             f"Scenario: {context.scenario_title}\n"
             f"Description: {context.scenario_description}\n"
-            f"Round: {context.round.round_number}\n"
-            f"User role: {context.round.user_role}\n"
-            f"AI role: {context.round.ai_role}\n"
-            f"Opening line: {context.round.opening_line}\n"
+            f"Round: {context.round_number}\n"
+            f"User role: {context.user_role}\n"
+            f"AI role: {context.ai_role}\n"
+            f"Opening line: {context.opening_line}\n"
             f"Transcript:\n{transcript}\n\n"
             "Generate the next AI reply in character."
         )
@@ -64,8 +74,8 @@ class OpponentService:
         last_user_message = next((m for m in reversed(context.history) if m.author == "user"), None)
         user_text = last_user_message.content if last_user_message else ""
 
-        ai_role = context.round.ai_role
-        user_role = context.round.user_role
+        ai_role = context.ai_role
+        user_role = context.user_role
         base_intro = f"[{ai_role}] отвечает [{user_role}]:"
 
         if not user_text:
