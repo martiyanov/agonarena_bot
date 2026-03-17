@@ -11,7 +11,7 @@ class Duel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     status: Mapped[str] = mapped_column(String(32), default="draft", index=True)
     scenario_id: Mapped[int] = mapped_column(ForeignKey("scenarios.id"), index=True)
-    user_telegram_id: Mapped[int] = mapped_column(index=True)
+    user_telegram_id: Mapped[int] = mapped_column(Integer, index=True)
 
     current_round_number: Mapped[int] = mapped_column(Integer, default=1)
     turn_time_limit_sec: Mapped[int] = mapped_column(Integer, default=90)
