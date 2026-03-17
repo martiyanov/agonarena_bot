@@ -5,3 +5,5 @@ __pycache__/
 .data/
 data/*.db
 data/*.sqlite3
+ops/ssl/*
+!ops/ssl/.gitkeep
