@@ -66,6 +66,24 @@ def _timer_hint(seconds: int) -> str:
     return f"⏱ На раунд: {seconds} сек."
 
 
+def _format_final_verdict(judge_service: JudgeService, verdicts: list, final_verdict: str) -> str:
+    lines: list[str] = [
+        "<b>Поединок завершён</b>",
+    ]
+
+    if final_verdict:
+        lines.extend(["", escape(final_verdict)])
+
+    if verdicts:
+        lines.append("\n<b>Мнение судей</b>")
+        labels = JudgeService.JUDGE_LABELS
+        for v in verdicts:
+            label = labels.get(v.judge_type, v.judge_type)
+            lines.append(f"• <b>{escape(label.title())}</b>: {escape(v.comment)}")
+
+    return "\n".join(lines)
+
+
 @router.message(F.text == SCENARIOS_BUTTON)
 async def show_scenarios(message: Message) -> None:
     async with AsyncSessionLocal() as session:
@@ -342,10 +360,11 @@ async def finish_duel_from_menu(message: Message) -> None:
             session.add(await judge_service.save_verdict(duel, verdict))
 
         final_verdict = judge_service.summarize_final_verdict(verdicts)
+        formatted = _format_final_verdict(judge_service, verdicts, final_verdict)
         await duel_service.finish_duel(duel, final_verdict)
         await session.commit()
 
-    await message.answer(f"<b>Поединок завершён</b>\n\n{escape(final_verdict)}", parse_mode="HTML")
+    await message.answer(formatted, parse_mode="HTML")
 
 
 @router.message(F.text.in_({RESULTS_BUTTON, RESULTS_BUTTON_LEGACY, RESULTS_BUTTON_LEGACY_2}))

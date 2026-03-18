@@ -28,9 +28,6 @@ class RoundTimerService:
         )
 
     async def _run_timeout(self, *, chat_id: int, duel_id: int, round_number: int, delay_seconds: int) -> None:
-        if (duel_id, round_number) in self._tasks:
-            return  # Task is already scheduled.
-
         try:
             await asyncio.sleep(delay_seconds)
 
