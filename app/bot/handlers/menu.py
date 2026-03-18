@@ -8,6 +8,7 @@ from pathlib import Path
 from aiogram import F, Router
 from aiogram.types import Message
 
+from app.bot.keyboards.main_menu import build_main_menu, build_more_menu
 from app.db.session import AsyncSessionLocal
 from app.services import (
     DuelService,
@@ -65,6 +66,16 @@ def _timer_hint(seconds: int) -> str:
     return f"⏱ На раунд: {seconds} сек."
 
 
+@router.message(F.text == MORE_BUTTON)
+async def show_more_menu(message: Message) -> None:
+    await message.answer("Дополнительные действия", reply_markup=build_more_menu())
+
+
+@router.message(F.text == BACK_BUTTON)
+async def show_main_menu(message: Message) -> None:
+    await message.answer("Главное меню", reply_markup=build_main_menu())
+
+
 @router.message(F.text == SCENARIOS_BUTTON)
 async def show_scenarios(message: Message) -> None:
     async with AsyncSessionLocal() as session:
@@ -76,7 +87,7 @@ async def show_scenarios(message: Message) -> None:
 
     blocks = [
         "<b>Сценарии</b>",
-        "Выберите код сценария из списка или нажмите <b>«Начать поединок»</b>.",
+        f"Выберите код сценария из списка или нажмите <b>«{escape(START_BUTTON)}»</b>.",
     ]
     for item in scenarios:
         blocks.append(
