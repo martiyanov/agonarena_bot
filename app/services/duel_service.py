@@ -22,7 +22,7 @@ class DuelService:
             scenario_id=scenario.id,
             user_telegram_id=telegram_user_id,
             current_round_number=1,
-            turn_time_limit_sec=90,
+            turn_time_limit_sec=180,
             user_role_round1=scenario.role_a_name,
             ai_role_round1=scenario.role_b_name,
             user_role_round2=scenario.role_b_name,

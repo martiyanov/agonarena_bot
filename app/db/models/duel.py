@@ -14,7 +14,7 @@ class Duel(Base):
     user_telegram_id: Mapped[int] = mapped_column(Integer, index=True)
 
     current_round_number: Mapped[int] = mapped_column(Integer, default=1)
-    turn_time_limit_sec: Mapped[int] = mapped_column(Integer, default=90)
+    turn_time_limit_sec: Mapped[int] = mapped_column(Integer, default=180)
 
     user_role_round1: Mapped[str] = mapped_column(String(128))
     ai_role_round1: Mapped[str] = mapped_column(String(128))
