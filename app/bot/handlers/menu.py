@@ -28,9 +28,10 @@ RESULTS_BUTTON_LEGACY = "🏆 Результаты"
 RESULTS_BUTTON_LEGACY_2 = "🏆 Мои результаты"
 RULES_BUTTON = "ℹ️ Правила"
 RULES_BUTTON_LEGACY = "ℹ️ Как это работает"
-TURN_BUTTON = "✍️ Реплика"
-TURN_BUTTON_LEGACY = "✍️ Отправить реплику"
-TURN_BUTTON_LEGACY_2 = "✍️ Сделать ход"
+TURN_BUTTON = "✍️ Ход"
+TURN_BUTTON_LEGACY = "✍️ Реплика"
+TURN_BUTTON_LEGACY_2 = "✍️ Отправить реплику"
+TURN_BUTTON_LEGACY_3 = "✍️ Сделать ход"
 NEXT_ROUND_BUTTON = "⏭️ Раунд 2"
 NEXT_ROUND_BUTTON_LEGACY = "⏭️ Следующий раунд"
 FINISH_BUTTON = "🏁 Завершить"
@@ -48,6 +49,7 @@ MENU_TEXTS = {
     TURN_BUTTON,
     TURN_BUTTON_LEGACY,
     TURN_BUTTON_LEGACY_2,
+    TURN_BUTTON_LEGACY_3,
     NEXT_ROUND_BUTTON,
     NEXT_ROUND_BUTTON_LEGACY,
     FINISH_BUTTON,
@@ -239,7 +241,7 @@ async def start_duel_by_scenario_code(message: Message) -> None:
     await _start_duel(message, scenario_code=message.text.strip())
 
 
-@router.message(F.text.in_({TURN_BUTTON, TURN_BUTTON_LEGACY}))
+@router.message(F.text.in_({TURN_BUTTON, TURN_BUTTON_LEGACY, TURN_BUTTON_LEGACY_2, TURN_BUTTON_LEGACY_3}))
 async def make_turn_prompt(message: Message) -> None:
     await message.answer("Пришлите следующим сообщением текст или голосовое. Я распознаю сообщение и отвечу от лица соперника.")
 

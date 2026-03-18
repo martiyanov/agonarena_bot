@@ -12,12 +12,15 @@ class ScenarioService:
         self.seed_path = Path(seed_path)
 
     async def seed_if_empty(self, session: AsyncSession) -> int:
-        existing = await session.execute(select(Scenario.id).limit(1))
-        if existing.first() is not None:
+        payload = json.loads(self.seed_path.read_text(encoding="utf-8"))
+
+        existing_codes_result = await session.execute(select(Scenario.code))
+        existing_codes = set(existing_codes_result.scalars().all())
+
+        scenarios = [Scenario(**item) for item in payload if item["code"] not in existing_codes]
+        if not scenarios:
             return 0
 
-        payload = json.loads(self.seed_path.read_text(encoding="utf-8"))
-        scenarios = [Scenario(**item) for item in payload]
         session.add_all(scenarios)
         await session.commit()
         return len(scenarios)
