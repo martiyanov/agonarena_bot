@@ -4,7 +4,7 @@ from app.config import settings
 
 
 class LLMService:
-    """Минимальный OpenAI-compatible клиент для MVP.
+    """Минимальный OpenAI-compatible клиент для бота.
 
     Если ключ не задан, вызывающая сторона может использовать fallback-логику.
     """

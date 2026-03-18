@@ -1,6 +1,6 @@
 # Agon Arena — ARCHITECTURE
 
-## MVP v1 architecture
+## Architecture
 
 ### 1. Telegram layer
 Отвечает за:
@@ -28,7 +28,7 @@
 - позже: `JudgeService`, `OpponentService`
 
 ### 3. Storage layer
-MVP использует SQLite.
+Текущая версия использует SQLite.
 
 Хранит:
 - сценарии
@@ -62,7 +62,7 @@ MVP использует SQLite.
 - SQLite в volume
 - health endpoint `/health`
 
-## Ограничения MVP
+## Ограничения текущей версии
 
 - только текст
 - только человек vs AI

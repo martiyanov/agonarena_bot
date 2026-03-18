@@ -3,7 +3,7 @@
 ## Product frame
 - Product: Agon Arena Bot
 - Interface: Telegram bot
-- MVP v1: text only
+- Current version: text only
 - Duel format: express management duel
 - Opponent mode in v1: human vs AI
 - Rounds: 2
@@ -53,7 +53,7 @@
 
 ## Local commits so far
 - 05bad53 chore: initialize agonarena bot scaffold
-- ba54345 docs: simplify mvp stack to sqlite
-- 32da835 docs: require docker-first mvp setup
+- ba54345 docs: simplify current stack to sqlite
+- 32da835 docs: require docker-first current setup
 - 7edce4b feat: add docker-first runnable app skeleton
 - 75f8a56 feat: add core duel domain models

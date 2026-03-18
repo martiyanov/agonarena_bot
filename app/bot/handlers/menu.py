@@ -21,9 +21,9 @@ router = Router()
 MENU_TEXTS = {
     "⚔️ Начать поединок",
     "📚 Сценарии",
-    "🏆 Мои результаты",
-    "ℹ️ Как это работает",
-    "✍️ Сделать ход",
+    "🏆 Результаты",
+    "ℹ️ Правила",
+    "✍️ Отправить реплику",
     "⏭️ Следующий раунд",
     "🏁 Завершить поединок",
 }
@@ -39,17 +39,17 @@ async def show_scenarios(message: Message) -> None:
         scenarios = await ScenarioService().list_active(session)
 
     if not scenarios:
-        await message.answer("Сценарии пока не загружены.")
+        await message.answer("Сценариев пока нет. Добавьте их в базу и попробуйте снова.")
         return
 
-    lines = ["Доступные сценарии:"]
+    lines = ["Сценарии", "", "Выберите код сценария или начните поединок из меню."]
     for item in scenarios:
         lines.append(
             f"• {item.title} — `{item.code}`\n"
             f"  {item.description}\n"
             f"  Роли: {item.role_a_name} ↔ {item.role_b_name}"
         )
-    await message.answer("\n".join(lines), parse_mode="Markdown")
+    await message.answer("\n".join(lines))
 
 
 async def _start_duel(message: Message, scenario_code: str | None = None) -> None:
@@ -62,20 +62,23 @@ async def _start_duel(message: Message, scenario_code: str | None = None) -> Non
             scenario = random.choice(scenarios) if scenarios else None
 
         if scenario is None:
-            await message.answer("Не удалось подобрать сценарий для старта поединка.")
+            await message.answer("Не смог подобрать сценарий для старта. Попробуйте ещё раз позже.")
             return
 
         duel = await duel_service.create_duel(session, telegram_user_id=message.from_user.id, scenario=scenario)
         rounds = await duel_service.get_duel_rounds(session, duel.id)
 
     lines = [
-        f"Поединок создан: #{duel.id}",
+        f"Поединок #{duel.id}",
         f"Сценарий: {scenario.title}",
         _timer_hint(duel.turn_time_limit_sec),
-        f"Раунд 1: вы — {rounds[0].user_role}, AI — {rounds[0].ai_role}",
-        f"Стартовая реплика AI: {rounds[0].opening_line}",
+        f"Раунд 1: вы — {rounds[0].user_role}, соперник — {rounds[0].ai_role}",
+        f"Первая реплика соперника: {rounds[0].opening_line}",
         "",
-        "Дальше: нажмите «✍️ Сделать ход», отправьте текст или голосовое сообщение. Если время выйдет, раунд автоматически считается закрытым при следующем действии.",
+        "Что дальше:",
+        "1. Нажмите «✍️ Отправить реплику».",
+        "2. Пришлите текст или голосовое.",
+        "3. Если время выйдет, раунд закроется при следующем действии.",
     ]
     await message.answer("\n".join(lines))
 
@@ -83,7 +86,7 @@ async def _start_duel(message: Message, scenario_code: str | None = None) -> Non
 async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: bool = False) -> None:
     clean_text = user_text.strip()
     if not clean_text:
-        await message.answer("Не удалось получить текст хода. Попробуйте ещё раз.")
+        await message.answer("Не получилось прочитать реплику. Попробуйте ещё раз.")
         return
 
     async with AsyncSessionLocal() as session:
@@ -92,16 +95,16 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
 
         duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=message.from_user.id)
         if duel is None:
-            await message.answer("У вас пока нет активных поединков. Нажмите «⚔️ Начать поединок». ")
+            await message.answer("Сейчас у вас нет активного поединка. Нажмите «⚔️ Начать поединок».")
             return
         if duel.status == "finished":
-            await message.answer("Последний поединок уже завершён. Начните новый кнопкой «⚔️ Начать поединок». ")
+            await message.answer("Последний поединок уже завершён. Чтобы начать заново, нажмите «⚔️ Начать поединок».")
             return
 
         scenario = await duel_service.get_scenario_by_id(session, duel.scenario_id)
         round_obj = await duel_service.get_round(session, duel_id=duel.id, round_number=duel.current_round_number)
         if round_obj is None:
-            await message.answer("Не удалось найти текущий раунд поединка. Попробуйте начать новый поединок.")
+            await message.answer("Не нашёл текущий раунд. Лучше начать новый поединок.")
             return
 
         await duel_service.ensure_round_started(duel, round_obj)
@@ -111,7 +114,7 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
             if round_obj.round_number == 1:
                 await message.answer("⏱ Время первого раунда вышло. Нажмите «⏭️ Следующий раунд», чтобы продолжить.")
             else:
-                await message.answer("⏱ Время второго раунда вышло. Нажмите «🏁 Завершить поединок», чтобы получить вердикт судей.")
+                await message.answer("⏱ Время второго раунда вышло. Нажмите «🏁 Завершить поединок», чтобы получить разбор судей.")
             return
 
         await duel_service.add_message(
@@ -182,9 +185,9 @@ async def start_duel_by_scenario_code(message: Message) -> None:
     await _start_duel(message, scenario_code=message.text.strip())
 
 
-@router.message(F.text == "✍️ Сделать ход")
+@router.message(F.text == "✍️ Отправить реплику")
 async def make_turn_prompt(message: Message) -> None:
-    await message.answer("Отправьте следующим сообщением текст или голосовое — я распознаю его и отвечу от лица AI-оппонента.")
+    await message.answer("Пришлите следующим сообщением текст или голосовое. Я распознаю сообщение и отвечу от лица соперника.")
 
 
 @router.message(F.text == "⏭️ Следующий раунд")
@@ -193,16 +196,16 @@ async def go_to_next_round(message: Message) -> None:
         duel_service = DuelService()
         duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=message.from_user.id)
         if duel is None:
-            await message.answer("У вас нет активного поединка. Нажмите «⚔️ Начать поединок». ")
+            await message.answer("Сейчас у вас нет активного поединка. Нажмите «⚔️ Начать поединок».")
             return
         if duel.current_round_number != 1:
-            await message.answer("Вы уже во втором раунде. Когда будете готовы — завершайте поединок кнопкой «🏁 Завершить поединок». ")
+            await message.answer("Вы уже во втором раунде. Когда будете готовы, нажмите «🏁 Завершить поединок».")
             return
 
         round_1 = await duel_service.get_round(session, duel.id, 1)
         round_2 = await duel_service.get_round(session, duel.id, 2)
         if round_1 is None or round_2 is None:
-            await message.answer("Не удалось найти раунды поединка.")
+            await message.answer("Не смог найти раунды этого поединка.")
             return
 
         await duel_service.complete_round(duel, round_1)
@@ -210,10 +213,10 @@ async def go_to_next_round(message: Message) -> None:
         await session.commit()
 
     await message.answer(
-        "Раунд 1 завершён. Начинаем раунд 2 со сменой ролей.\n"
+        "Раунд 1 завершён. Переходим ко второму раунду со сменой ролей.\n"
         f"{_timer_hint(duel.turn_time_limit_sec)}\n"
-        f"Теперь вы — {round_2.user_role}, AI — {round_2.ai_role}.\n"
-        f"Стартовая реплика AI: {round_2.opening_line}"
+        f"Теперь вы — {round_2.user_role}, соперник — {round_2.ai_role}.\n"
+        f"Первая реплика соперника: {round_2.opening_line}"
     )
 
 
@@ -225,7 +228,7 @@ async def finish_duel_from_menu(message: Message) -> None:
 
         duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=message.from_user.id)
         if duel is None:
-            await message.answer("У вас нет поединка для завершения.")
+            await message.answer("Сейчас нечего завершать: активного поединка нет.")
             return
         if duel.status == "finished":
             await message.answer(f"Этот поединок уже завершён.\n\n{duel.final_verdict or ''}")
@@ -235,7 +238,7 @@ async def finish_duel_from_menu(message: Message) -> None:
         round_2 = await duel_service.get_round(session, duel.id, 2)
         scenario = await duel_service.get_scenario_by_id(session, duel.scenario_id)
         if round_1 is None or round_2 is None or scenario is None:
-            await message.answer("Не удалось собрать данные для завершения поединка.")
+            await message.answer("Не смог собрать данные для завершения поединка.")
             return
 
         if round_2.status != "finished":
@@ -258,20 +261,20 @@ async def finish_duel_from_menu(message: Message) -> None:
     await message.answer(f"Поединок завершён.\n\n{final_verdict}")
 
 
-@router.message(F.text == "🏆 Мои результаты")
+@router.message(F.text == "🏆 Результаты")
 async def my_results(message: Message) -> None:
     async with AsyncSessionLocal() as session:
         duel_service = DuelService()
         duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=message.from_user.id)
         if duel is None:
-            await message.answer("Пока нет сохранённых поединков.")
+            await message.answer("Пока нет сохранённых результатов.")
             return
 
         rounds = await duel_service.get_duel_rounds(session, duel.id)
         judge_results = await duel_service.list_judge_results(session, duel.id)
 
     lines = [
-        f"Последний поединок: #{duel.id}",
+        f"**Последний поединок: #{duel.id}**",
         f"Статус: {duel.status}",
         f"Текущий раунд: {duel.current_round_number}",
         _timer_hint(duel.turn_time_limit_sec),
@@ -288,12 +291,20 @@ async def my_results(message: Message) -> None:
     await message.answer("\n".join(lines))
 
 
-@router.message(F.text == "ℹ️ Как это работает")
+@router.message(F.text == "ℹ️ Правила")
 async def how_it_works(message: Message) -> None:
     await message.answer(
-        "Формат MVP: 2 раунда, во втором раунде смена ролей, затем три судьи выносят итог. "
-        "Поток такой: старт поединка → ходы в раунде 1 → «Следующий раунд» → ходы в раунде 2 → «Завершить поединок». "
-        "Ход можно отправить и текстом, и голосовым сообщением. На каждый раунд даётся 90 секунд."
+        "**Как проходит поединок**\n\n"
+        "• Поединок состоит из двух раундов.\n"
+        "• Во втором раунде роли меняются.\n"
+        "• После завершения три судьи дают итоговый разбор.\n\n"
+        "**Как действовать**\n"
+        "1. Начните поединок.\n"
+        "2. Отправляйте реплики текстом или голосом.\n"
+        "3. Переключитесь на следующий раунд.\n"
+        "4. Завершите поединок и получите результат.\n\n"
+        "На каждый раунд даётся 90 секунд.",
+        parse_mode="Markdown",
     )
 
 
@@ -301,16 +312,16 @@ async def how_it_works(message: Message) -> None:
 async def process_voice_turn(message: Message) -> None:
     transcription_service = TranscriptionService()
     if not transcription_service.is_configured():
-        await message.answer("Распознавание голоса пока не настроено. Пришлите, пожалуйста, текстом.")
+        await message.answer("Распознавание голоса пока не настроено. Отправьте сообщение текстом.")
         return
 
     temp_path: Path | None = None
     try:
-        await message.answer("Получил голосовое. Распознаю…")
+        await message.answer("Голосовое получил. Распознаю…")
         temp_path = await _download_telegram_file(message)
         transcript = await transcription_service.transcribe(temp_path, language="ru")
     except Exception:
-        await message.answer("Не удалось распознать голосовое. Попробуйте ещё раз или отправьте текстом.")
+        await message.answer("Не удалось распознать голосовое. Попробуйте ещё раз или отправьте текст.")
         return
     finally:
         if temp_path and temp_path.exists():
@@ -323,16 +334,16 @@ async def process_voice_turn(message: Message) -> None:
 async def process_audio_turn(message: Message) -> None:
     transcription_service = TranscriptionService()
     if not transcription_service.is_configured():
-        await message.answer("Распознавание аудио пока не настроено. Пришлите, пожалуйста, текстом.")
+        await message.answer("Распознавание аудио пока не настроено. Отправьте сообщение текстом.")
         return
 
     temp_path: Path | None = None
     try:
-        await message.answer("Получил аудио. Распознаю…")
+        await message.answer("Аудио получил. Распознаю…")
         temp_path = await _download_telegram_file(message)
         transcript = await transcription_service.transcribe(temp_path, language="ru")
     except Exception:
-        await message.answer("Не удалось распознать аудио. Попробуйте ещё раз или отправьте текстом.")
+        await message.answer("Не удалось распознать аудио. Попробуйте ещё раз или отправьте текст.")
         return
     finally:
         if temp_path and temp_path.exists():
