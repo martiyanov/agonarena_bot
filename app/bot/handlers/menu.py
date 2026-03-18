@@ -232,9 +232,6 @@ async def go_to_next_round(message: Message) -> None:
         if duel is None:
             await message.answer(f"Сейчас у вас нет активного поединка. Нажмите «{START_BUTTON}».")
             return
-        if duel.current_round_number != 1:
-            await message.answer(f"Вы уже во втором раунде. Когда будете готовы, нажмите «{FINISH_BUTTON}».")
-            return
 
         round_1 = await duel_service.get_round(session, duel.id, 1)
         round_2 = await duel_service.get_round(session, duel.id, 2)
@@ -242,7 +239,17 @@ async def go_to_next_round(message: Message) -> None:
             await message.answer("Не смог найти раунды этого поединка.")
             return
 
-        await duel_service.complete_round(duel, round_1)
+        if round_2.status == "in_progress":
+            await message.answer(f"Вы уже во втором раунде. Когда будете готовы, нажмите «{FINISH_BUTTON}».")
+            return
+
+        if round_2.status == "finished":
+            await message.answer(f"Второй раунд уже завершён. Нажмите «{FINISH_BUTTON}», чтобы получить итог.")
+            return
+
+        if round_1.status != "finished":
+            await duel_service.complete_round(duel, round_1)
+
         await duel_service.ensure_round_started(duel, round_2)
         await session.commit()
 
