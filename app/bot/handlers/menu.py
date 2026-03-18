@@ -20,28 +20,38 @@ from app.services import (
 
 router = Router()
 
-START_BUTTON = "⚔️ Начать поединок"
+START_BUTTON = "⚔️ Поединок"
+START_BUTTON_LEGACY = "⚔️ Начать поединок"
 SCENARIOS_BUTTON = "📚 Сценарии"
-RESULTS_BUTTON = "🏆 Результаты"
-RESULTS_BUTTON_LEGACY = "🏆 Мои результаты"
+RESULTS_BUTTON = "🏆 Итоги"
+RESULTS_BUTTON_LEGACY = "🏆 Результаты"
+RESULTS_BUTTON_LEGACY_2 = "🏆 Мои результаты"
 RULES_BUTTON = "ℹ️ Правила"
 RULES_BUTTON_LEGACY = "ℹ️ Как это работает"
-TURN_BUTTON = "✍️ Отправить реплику"
-TURN_BUTTON_LEGACY = "✍️ Сделать ход"
-NEXT_ROUND_BUTTON = "⏭️ Следующий раунд"
-FINISH_BUTTON = "🏁 Завершить поединок"
+TURN_BUTTON = "✍️ Реплика"
+TURN_BUTTON_LEGACY = "✍️ Отправить реплику"
+TURN_BUTTON_LEGACY_2 = "✍️ Сделать ход"
+NEXT_ROUND_BUTTON = "⏭️ Раунд 2"
+NEXT_ROUND_BUTTON_LEGACY = "⏭️ Следующий раунд"
+FINISH_BUTTON = "🏁 Завершить"
+FINISH_BUTTON_LEGACY = "🏁 Завершить поединок"
 
 MENU_TEXTS = {
     START_BUTTON,
+    START_BUTTON_LEGACY,
     SCENARIOS_BUTTON,
     RESULTS_BUTTON,
     RESULTS_BUTTON_LEGACY,
+    RESULTS_BUTTON_LEGACY_2,
     RULES_BUTTON,
     RULES_BUTTON_LEGACY,
     TURN_BUTTON,
     TURN_BUTTON_LEGACY,
+    TURN_BUTTON_LEGACY_2,
     NEXT_ROUND_BUTTON,
+    NEXT_ROUND_BUTTON_LEGACY,
     FINISH_BUTTON,
+    FINISH_BUTTON_LEGACY,
 }
 
 
@@ -224,7 +234,7 @@ async def make_turn_prompt(message: Message) -> None:
     await message.answer("Пришлите следующим сообщением текст или голосовое. Я распознаю сообщение и отвечу от лица соперника.")
 
 
-@router.message(F.text == NEXT_ROUND_BUTTON)
+@router.message(F.text.in_({NEXT_ROUND_BUTTON, NEXT_ROUND_BUTTON_LEGACY}))
 async def go_to_next_round(message: Message) -> None:
     async with AsyncSessionLocal() as session:
         duel_service = DuelService()
@@ -308,7 +318,7 @@ async def finish_duel_from_menu(message: Message) -> None:
     await message.answer(f"<b>Поединок завершён</b>\n\n{escape(final_verdict)}", parse_mode="HTML")
 
 
-@router.message(F.text.in_({RESULTS_BUTTON, RESULTS_BUTTON_LEGACY}))
+@router.message(F.text.in_({RESULTS_BUTTON, RESULTS_BUTTON_LEGACY, RESULTS_BUTTON_LEGACY_2}))
 async def my_results(message: Message) -> None:
     async with AsyncSessionLocal() as session:
         duel_service = DuelService()
@@ -408,3 +418,4 @@ async def process_audio_turn(message: Message) -> None:
 @router.message(F.text & ~F.text.in_(MENU_TEXTS))
 async def process_turn(message: Message) -> None:
     await _run_turn(message, message.text)
+
