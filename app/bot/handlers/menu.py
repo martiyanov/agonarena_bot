@@ -180,6 +180,7 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
             history=history,
         )
         ai_reply = await opponent_service.generate_reply(context)
+        seconds_left = duel_service.get_seconds_left(duel, round_obj)
 
         await duel_service.add_message(
             session,
@@ -190,17 +191,20 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
         )
         await session.commit()
 
+    timer_line = f"⏱ До конца раунда: {seconds_left or 0} сек."
+
     if recognized_from_voice:
         await message.answer(
             "<b>Ваша реплика</b>\n"
             f"{escape(clean_text)}\n\n"
             "<b>Ответ соперника</b>\n"
-            f"{escape(ai_reply)}",
+            f"{escape(ai_reply)}\n\n"
+            f"{escape(timer_line)}",
             parse_mode="HTML",
         )
         return
 
-    await message.answer(ai_reply)
+    await message.answer(f"{ai_reply}\n\n{timer_line}")
 
 
 async def _download_telegram_file(message: Message) -> Path:
