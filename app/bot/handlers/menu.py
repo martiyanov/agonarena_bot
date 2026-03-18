@@ -191,7 +191,13 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
         await session.commit()
 
     if recognized_from_voice:
-        await message.answer(f"<b>Распознал так:</b> {escape(clean_text)}\n\n{escape(ai_reply)}", parse_mode="HTML")
+        await message.answer(
+            "<b>Ваша реплика</b>\n"
+            f"{escape(clean_text)}\n\n"
+            "<b>Ответ соперника</b>\n"
+            f"{escape(ai_reply)}",
+            parse_mode="HTML",
+        )
         return
 
     await message.answer(ai_reply)
