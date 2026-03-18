@@ -12,6 +12,7 @@ from app.services.duel_service import DuelService
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class RoundTimerService:
