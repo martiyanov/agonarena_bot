@@ -371,11 +371,13 @@ async def my_results(message: Message) -> None:
             f"• Раунд {round_obj.round_number}: {escape(round_obj.status)} ({escape(round_obj.user_role)} vs {escape(round_obj.ai_role)})"
         )
     if judge_results:
-        lines.append("\n<b>Вердикты судей</b>")
+        lines.append("\n<b>Мнение судей</b>")
+        judge_labels = JudgeService.JUDGE_LABELS
         for item in judge_results:
-            lines.append(f"• {escape(item.judge_type)}: {escape(item.winner)} — {escape(item.comment)}")
+            label = judge_labels.get(item.judge_type, item.judge_type)
+            lines.append(f"• <b>{escape(label.title())}:</b> {escape(item.comment)}")
     if duel.final_verdict:
-        lines.append(f"\n<b>Итог</b>\n{escape(duel.final_verdict)}")
+        lines.append(f"\n<b>Краткий итог</b>\n{escape(duel.final_verdict.splitlines()[0])}")
 
     await message.answer("\n".join(lines), parse_mode="HTML")
 
@@ -399,6 +401,55 @@ async def how_it_works(message: Message) -> None:
         "<a href=\"https://t.me/tribute/app?startapp=dHaW\">Отблагодарить автора</a>",
         parse_mode="HTML",
     )
+
+
+@router.message(F.voice)
+async def process_voice_turn(message: Message) -> None:
+    transcription_service = TranscriptionService()
+    if not transcription_service.is_configured():
+        await message.answer("Распознавание голоса пока не настроено. Отправьте сообщение текстом.")
+        return
+
+    temp_path: Path | None = None
+    try:
+        await message.answer("Голосовое получил. Распознаю…")
+        temp_path = await _download_telegram_file(message)
+        transcript = await transcription_service.transcribe(temp_path, language="ru")
+    except Exception:
+        await message.answer("Не удалось распознать голосовое. Попробуйте ещё раз или отправьте текст.")
+        return
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
+
+    await _run_turn(message, transcript, recognized_from_voice=True)
+
+
+@router.message(F.audio)
+async def process_audio_turn(message: Message) -> None:
+    transcription_service = TranscriptionService()
+    if not transcription_service.is_configured():
+        await message.answer("Распознавание аудио пока не настроено. Отправьте сообщение текстом.")
+        return
+
+    temp_path: Path | None = None
+    try:
+        await message.answer("Аудио получил. Распознаю…")
+        temp_path = await _download_telegram_file(message)
+        transcript = await transcription_service.transcribe(temp_path, language="ru")
+    except Exception:
+        await message.answer("Не удалось распознать аудио. Попробуйте ещё раз или отправьте текст.")
+        return
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
+
+    await _run_turn(message, transcript, recognized_from_voice=True)
+
+
+@router.message(F.text & ~F.text.in_(MENU_TEXTS))
+async def process_turn(message: Message) -> None:
+    await _run_turn(message, message.text)
 
 
 @router.message(F.voice)
