@@ -154,6 +154,16 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
             return
 
         await duel_service.ensure_round_started(duel, round_obj)
+
+        seconds_left = duel_service.get_seconds_left(duel, round_obj)
+        if seconds_left:
+            round_timer_service.schedule(
+                chat_id=message.chat.id,
+                duel_id=duel.id,
+                round_number=round_obj.round_number,
+                delay_seconds=seconds_left,
+            )
+
         if duel_service.is_round_expired(duel, round_obj):
             await duel_service.complete_round(duel, round_obj)
             await session.commit()
@@ -274,6 +284,13 @@ async def go_to_next_round(message: Message) -> None:
 
         await duel_service.ensure_round_started(duel, round_2)
         await session.commit()
+
+    round_timer_service.schedule(
+        chat_id=message.chat.id,
+        duel_id=duel.id,
+        round_number=2,
+        delay_seconds=duel.turn_time_limit_sec,
+    )
 
     text = "\n".join(
         [
