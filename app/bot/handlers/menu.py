@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 import tempfile
+from html import escape
 from pathlib import Path
 
 from aiogram import F, Router
@@ -18,14 +19,29 @@ from app.services import (
 )
 
 router = Router()
+
+START_BUTTON = "⚔️ Начать поединок"
+SCENARIOS_BUTTON = "📚 Сценарии"
+RESULTS_BUTTON = "🏆 Результаты"
+RESULTS_BUTTON_LEGACY = "🏆 Мои результаты"
+RULES_BUTTON = "ℹ️ Правила"
+RULES_BUTTON_LEGACY = "ℹ️ Как это работает"
+TURN_BUTTON = "✍️ Отправить реплику"
+TURN_BUTTON_LEGACY = "✍️ Сделать ход"
+NEXT_ROUND_BUTTON = "⏭️ Следующий раунд"
+FINISH_BUTTON = "🏁 Завершить поединок"
+
 MENU_TEXTS = {
-    "⚔️ Начать поединок",
-    "📚 Сценарии",
-    "🏆 Результаты",
-    "ℹ️ Правила",
-    "✍️ Отправить реплику",
-    "⏭️ Следующий раунд",
-    "🏁 Завершить поединок",
+    START_BUTTON,
+    SCENARIOS_BUTTON,
+    RESULTS_BUTTON,
+    RESULTS_BUTTON_LEGACY,
+    RULES_BUTTON,
+    RULES_BUTTON_LEGACY,
+    TURN_BUTTON,
+    TURN_BUTTON_LEGACY,
+    NEXT_ROUND_BUTTON,
+    FINISH_BUTTON,
 }
 
 
@@ -33,7 +49,7 @@ def _timer_hint(seconds: int) -> str:
     return f"⏱ На раунд: {seconds} сек."
 
 
-@router.message(F.text == "📚 Сценарии")
+@router.message(F.text == SCENARIOS_BUTTON)
 async def show_scenarios(message: Message) -> None:
     async with AsyncSessionLocal() as session:
         scenarios = await ScenarioService().list_active(session)
@@ -42,14 +58,23 @@ async def show_scenarios(message: Message) -> None:
         await message.answer("Сценариев пока нет. Добавьте их в базу и попробуйте снова.")
         return
 
-    lines = ["Сценарии", "", "Выберите код сценария или начните поединок из меню."]
+    blocks = [
+        "<b>Сценарии</b>",
+        "Выберите код сценария из списка или нажмите <b>«Начать поединок»</b>.",
+    ]
     for item in scenarios:
-        lines.append(
-            f"• {item.title} — `{item.code}`\n"
-            f"  {item.description}\n"
-            f"  Роли: {item.role_a_name} ↔ {item.role_b_name}"
+        blocks.append(
+            "\n".join(
+                [
+                    f"• <b>{escape(item.title)}</b>",
+                    f"Код: <code>{escape(item.code)}</code>",
+                    f"{escape(item.description)}",
+                    f"Роли: {escape(item.role_a_name)} ↔ {escape(item.role_b_name)}",
+                ]
+            )
         )
-    await message.answer("\n".join(lines))
+
+    await message.answer("\n\n".join(blocks), parse_mode="HTML")
 
 
 async def _start_duel(message: Message, scenario_code: str | None = None) -> None:
@@ -68,19 +93,24 @@ async def _start_duel(message: Message, scenario_code: str | None = None) -> Non
         duel = await duel_service.create_duel(session, telegram_user_id=message.from_user.id, scenario=scenario)
         rounds = await duel_service.get_duel_rounds(session, duel.id)
 
-    lines = [
-        f"Поединок #{duel.id}",
-        f"Сценарий: {scenario.title}",
-        _timer_hint(duel.turn_time_limit_sec),
-        f"Раунд 1: вы — {rounds[0].user_role}, соперник — {rounds[0].ai_role}",
-        f"Первая реплика соперника: {rounds[0].opening_line}",
-        "",
-        "Что дальше:",
-        "1. Нажмите «✍️ Отправить реплику».",
-        "2. Пришлите текст или голосовое.",
-        "3. Если время выйдет, раунд закроется при следующем действии.",
-    ]
-    await message.answer("\n".join(lines))
+    round_1 = rounds[0]
+    text = "\n".join(
+        [
+            f"<b>Поединок #{duel.id}</b>",
+            f"Сценарий: <b>{escape(scenario.title)}</b>",
+            _timer_hint(duel.turn_time_limit_sec),
+            f"Раунд 1: вы — <b>{escape(round_1.user_role)}</b>, соперник — <b>{escape(round_1.ai_role)}</b>",
+            "",
+            "<b>Первая реплика соперника</b>",
+            escape(round_1.opening_line),
+            "",
+            "<b>Что дальше</b>",
+            f"1. Нажмите <b>«{escape(TURN_BUTTON)}»</b>.",
+            "2. Пришлите текст или голосовое.",
+            "3. После ответа можно продолжить раунд или перейти дальше.",
+        ]
+    )
+    await message.answer(text, parse_mode="HTML")
 
 
 async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: bool = False) -> None:
@@ -95,10 +125,10 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
 
         duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=message.from_user.id)
         if duel is None:
-            await message.answer("Сейчас у вас нет активного поединка. Нажмите «⚔️ Начать поединок».")
+            await message.answer(f"Сейчас у вас нет активного поединка. Нажмите «{START_BUTTON}».")
             return
         if duel.status == "finished":
-            await message.answer("Последний поединок уже завершён. Чтобы начать заново, нажмите «⚔️ Начать поединок».")
+            await message.answer(f"Последний поединок уже завершён. Чтобы начать заново, нажмите «{START_BUTTON}».")
             return
 
         scenario = await duel_service.get_scenario_by_id(session, duel.scenario_id)
@@ -112,9 +142,9 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
             await duel_service.complete_round(duel, round_obj)
             await session.commit()
             if round_obj.round_number == 1:
-                await message.answer("⏱ Время первого раунда вышло. Нажмите «⏭️ Следующий раунд», чтобы продолжить.")
+                await message.answer(f"⏱ Время первого раунда вышло. Нажмите «{NEXT_ROUND_BUTTON}», чтобы продолжить.")
             else:
-                await message.answer("⏱ Время второго раунда вышло. Нажмите «🏁 Завершить поединок», чтобы получить разбор судей.")
+                await message.answer(f"⏱ Время второго раунда вышло. Нажмите «{FINISH_BUTTON}», чтобы получить разбор судей.")
             return
 
         await duel_service.add_message(
@@ -147,7 +177,7 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
         await session.commit()
 
     if recognized_from_voice:
-        await message.answer(f"Распознал так: {clean_text}\n\n{ai_reply}")
+        await message.answer(f"<b>Распознал так:</b> {escape(clean_text)}\n\n{escape(ai_reply)}", parse_mode="HTML")
         return
 
     await message.answer(ai_reply)
@@ -175,7 +205,7 @@ async def _download_telegram_file(message: Message) -> Path:
     return tmp_path
 
 
-@router.message(F.text == "⚔️ Начать поединок")
+@router.message(F.text == START_BUTTON)
 async def start_duel_from_menu(message: Message) -> None:
     await _start_duel(message)
 
@@ -185,21 +215,21 @@ async def start_duel_by_scenario_code(message: Message) -> None:
     await _start_duel(message, scenario_code=message.text.strip())
 
 
-@router.message(F.text == "✍️ Отправить реплику")
+@router.message(F.text.in_({TURN_BUTTON, TURN_BUTTON_LEGACY}))
 async def make_turn_prompt(message: Message) -> None:
     await message.answer("Пришлите следующим сообщением текст или голосовое. Я распознаю сообщение и отвечу от лица соперника.")
 
 
-@router.message(F.text == "⏭️ Следующий раунд")
+@router.message(F.text == NEXT_ROUND_BUTTON)
 async def go_to_next_round(message: Message) -> None:
     async with AsyncSessionLocal() as session:
         duel_service = DuelService()
         duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=message.from_user.id)
         if duel is None:
-            await message.answer("Сейчас у вас нет активного поединка. Нажмите «⚔️ Начать поединок».")
+            await message.answer(f"Сейчас у вас нет активного поединка. Нажмите «{START_BUTTON}».")
             return
         if duel.current_round_number != 1:
-            await message.answer("Вы уже во втором раунде. Когда будете готовы, нажмите «🏁 Завершить поединок».")
+            await message.answer(f"Вы уже во втором раунде. Когда будете готовы, нажмите «{FINISH_BUTTON}».")
             return
 
         round_1 = await duel_service.get_round(session, duel.id, 1)
@@ -212,15 +242,21 @@ async def go_to_next_round(message: Message) -> None:
         await duel_service.ensure_round_started(duel, round_2)
         await session.commit()
 
-    await message.answer(
-        "Раунд 1 завершён. Переходим ко второму раунду со сменой ролей.\n"
-        f"{_timer_hint(duel.turn_time_limit_sec)}\n"
-        f"Теперь вы — {round_2.user_role}, соперник — {round_2.ai_role}.\n"
-        f"Первая реплика соперника: {round_2.opening_line}"
+    text = "\n".join(
+        [
+            "<b>Раунд 1 завершён</b>",
+            "Переходим ко второму раунду со сменой ролей.",
+            _timer_hint(duel.turn_time_limit_sec),
+            f"Теперь вы — <b>{escape(round_2.user_role)}</b>, соперник — <b>{escape(round_2.ai_role)}</b>.",
+            "",
+            "<b>Первая реплика соперника</b>",
+            escape(round_2.opening_line),
+        ]
     )
+    await message.answer(text, parse_mode="HTML")
 
 
-@router.message(F.text == "🏁 Завершить поединок")
+@router.message(F.text == FINISH_BUTTON)
 async def finish_duel_from_menu(message: Message) -> None:
     async with AsyncSessionLocal() as session:
         duel_service = DuelService()
@@ -258,10 +294,10 @@ async def finish_duel_from_menu(message: Message) -> None:
         await duel_service.finish_duel(duel, final_verdict)
         await session.commit()
 
-    await message.answer(f"Поединок завершён.\n\n{final_verdict}")
+    await message.answer(f"<b>Поединок завершён</b>\n\n{escape(final_verdict)}", parse_mode="HTML")
 
 
-@router.message(F.text == "🏆 Результаты")
+@router.message(F.text.in_({RESULTS_BUTTON, RESULTS_BUTTON_LEGACY}))
 async def my_results(message: Message) -> None:
     async with AsyncSessionLocal() as session:
         duel_service = DuelService()
@@ -274,37 +310,39 @@ async def my_results(message: Message) -> None:
         judge_results = await duel_service.list_judge_results(session, duel.id)
 
     lines = [
-        f"**Последний поединок: #{duel.id}**",
-        f"Статус: {duel.status}",
+        f"<b>Последний поединок: #{duel.id}</b>",
+        f"Статус: {escape(duel.status)}",
         f"Текущий раунд: {duel.current_round_number}",
-        _timer_hint(duel.turn_time_limit_sec),
+        escape(_timer_hint(duel.turn_time_limit_sec)),
     ]
     for round_obj in rounds:
-        lines.append(f"- Раунд {round_obj.round_number}: {round_obj.status} ({round_obj.user_role} vs {round_obj.ai_role})")
+        lines.append(
+            f"• Раунд {round_obj.round_number}: {escape(round_obj.status)} ({escape(round_obj.user_role)} vs {escape(round_obj.ai_role)})"
+        )
     if judge_results:
-        lines.append("\nВердикты судей:")
+        lines.append("\n<b>Вердикты судей</b>")
         for item in judge_results:
-            lines.append(f"- {item.judge_type}: {item.winner} — {item.comment}")
+            lines.append(f"• {escape(item.judge_type)}: {escape(item.winner)} — {escape(item.comment)}")
     if duel.final_verdict:
-        lines.append(f"\nИтог:\n{duel.final_verdict}")
+        lines.append(f"\n<b>Итог</b>\n{escape(duel.final_verdict)}")
 
-    await message.answer("\n".join(lines))
+    await message.answer("\n".join(lines), parse_mode="HTML")
 
 
-@router.message(F.text == "ℹ️ Правила")
+@router.message(F.text.in_({RULES_BUTTON, RULES_BUTTON_LEGACY}))
 async def how_it_works(message: Message) -> None:
     await message.answer(
-        "**Как проходит поединок**\n\n"
+        "<b>Как проходит поединок</b>\n\n"
         "• Поединок состоит из двух раундов.\n"
         "• Во втором раунде роли меняются.\n"
         "• После завершения три судьи дают итоговый разбор.\n\n"
-        "**Как действовать**\n"
-        "1. Начните поединок.\n"
-        "2. Отправляйте реплики текстом или голосом.\n"
-        "3. Переключитесь на следующий раунд.\n"
-        "4. Завершите поединок и получите результат.\n\n"
+        "<b>Как действовать</b>\n"
+        f"1. Нажмите <b>«{escape(START_BUTTON)}»</b>.\n"
+        f"2. Отправляйте реплики через <b>«{escape(TURN_BUTTON)}»</b> текстом или голосом.\n"
+        f"3. Перейдите через <b>«{escape(NEXT_ROUND_BUTTON)}»</b> ко второму раунду.\n"
+        f"4. Завершите поединок кнопкой <b>«{escape(FINISH_BUTTON)}»</b>.\n\n"
         "На каждый раунд даётся 90 секунд.",
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
 
 
