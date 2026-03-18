@@ -6,12 +6,10 @@ def build_main_menu() -> ReplyKeyboardMarkup:
         keyboard=[
             [
                 KeyboardButton(text="⚔️ Поединок"),
-                KeyboardButton(text="✍️ Ход"),
                 KeyboardButton(text="⏭️ Раунд 2"),
+                KeyboardButton(text="🏁 Завершить"),
             ],
             [
-                KeyboardButton(text="🏁 Завершить"),
-                KeyboardButton(text="🏆 Итоги"),
                 KeyboardButton(text="📚 Сценарии"),
                 KeyboardButton(text="ℹ️ Правила"),
             ],
