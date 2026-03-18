@@ -25,10 +25,10 @@ class RoundTimerService:
         key = (duel_id, round_number)
         old_task = self._tasks.get(key)
         if old_task and not old_task.done():
-            logger.debug("round timer: cancelling previous task for duel=%s round=%s", duel_id, round_number)
+            logger.info("round timer: cancelling previous task for duel=%s round=%s", duel_id, round_number)
             old_task.cancel()
 
-        logger.debug(
+        logger.info(
             "round timer: scheduling timeout in %s sec for duel=%s round=%s",
             delay_seconds,
             duel_id,
@@ -41,7 +41,7 @@ class RoundTimerService:
 
     async def _run_timeout(self, *, chat_id: int, duel_id: int, round_number: int, delay_seconds: int) -> None:
         try:
-            logger.debug(
+            logger.info(
                 "round timer: started background wait for duel=%s round=%s delay=%s",
                 duel_id,
                 round_number,
@@ -57,7 +57,7 @@ class RoundTimerService:
                 if duel is None or round_obj is None:
                     return
                 if round_obj.status != "in_progress":
-                    logger.debug(
+                    logger.info(
                         "round timer: round already not in_progress (status=%s) for duel=%s round=%s",
                         round_obj.status,
                         duel_id,
@@ -65,14 +65,14 @@ class RoundTimerService:
                     )
                     return
                 if not duel_service.is_round_expired(duel, round_obj):
-                    logger.debug(
+                    logger.info(
                         "round timer: deadline not reached yet for duel=%s round=%s",
                         duel_id,
                         round_number,
                     )
                     return
 
-                logger.debug("round timer: completing round for duel=%s round=%s", duel_id, round_number)
+                logger.info("round timer: completing round for duel=%s round=%s", duel_id, round_number)
                 await duel_service.complete_round(duel, round_obj)
                 await session.commit()
 
@@ -85,7 +85,7 @@ class RoundTimerService:
                     text = "⏱ Время первого раунда вышло. Нажмите «⏭️ Раунд 2», чтобы продолжить."
                 else:
                     text = "⏱ Время второго раунда вышло. Нажмите «🏁 Завершить», чтобы получить итог."
-                logger.debug("round timer: sending timeout message for duel=%s round=%s", duel_id, round_number)
+                logger.info("round timer: sending timeout message for duel=%s round=%s", duel_id, round_number)
                 await bot.send_message(chat_id=chat_id, text=text)
             finally:
                 await bot.session.close()
