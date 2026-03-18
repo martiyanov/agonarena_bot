@@ -301,15 +301,8 @@ async def go_to_next_round(message: Message) -> None:
         if round_1.status != "finished":
             await duel_service.complete_round(duel, round_1)
 
-        await duel_service.ensure_round_started(duel, round_2)
+        # Второй раунд остаётся в pending до первого ответа пользователя
         await session.commit()
-
-    round_timer_service.schedule(
-        chat_id=message.chat.id,
-        duel_id=duel.id,
-        round_number=2,
-        delay_seconds=duel.turn_time_limit_sec,
-    )
 
     text = "\n".join(
         [

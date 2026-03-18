@@ -34,11 +34,11 @@ class DuelService:
         round_1 = DuelRound(
             duel_id=duel.id,
             round_number=1,
-            status="in_progress",
+            status="pending",
             user_role=scenario.role_a_name,
             ai_role=scenario.role_b_name,
             opening_line=scenario.opening_line_b,
-            started_at=now,
+            started_at=None,
         )
         round_2 = DuelRound(
             duel_id=duel.id,
@@ -151,3 +151,4 @@ class DuelService:
             select(JudgeResult).where(JudgeResult.duel_id == duel_id).order_by(JudgeResult.id.asc())
         )
         return list(result.scalars().all())
+
