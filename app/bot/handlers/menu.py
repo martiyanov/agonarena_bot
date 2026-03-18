@@ -27,7 +27,7 @@ SCENARIOS_BUTTON = "📚 Сценарии"
 RESULTS_BUTTON = "🏆 Итоги"
 RESULTS_BUTTON_LEGACY = "🏆 Результаты"
 RESULTS_BUTTON_LEGACY_2 = "🏆 Мои результаты"
-RULES_BUTTON = "ℹ️ Правила"
+RULES_BUTTON = "ℹ️ Справка"
 RULES_BUTTON_LEGACY = "ℹ️ Как это работает"
 TURN_BUTTON = "✍️ Ход"
 TURN_BUTTON_LEGACY = "✍️ Реплика"
@@ -382,10 +382,28 @@ async def my_results(message: Message) -> None:
     await message.answer("\n".join(lines), parse_mode="HTML")
 
 
-@router.message(F.text.in_({RULES_BUTTON, RULES_BUTTON_LEGACY}))
+@router.message(F.text.in_({RULES_BUTTON, RULES_BUTTON_LEGACY, SCENARIOS_BUTTON}))
 async def how_it_works(message: Message) -> None:
+    async with AsyncSessionLocal() as session:
+        scenarios = await ScenarioService().list_active(session)
+
+    scenario_lines: list[str] = []
+    for item in scenarios:
+        scenario_lines.append(
+            "\n".join(
+                [
+                    f"• <b>{escape(item.title)}</b>",
+                    f"Код: <code>{escape(item.code)}</code>",
+                    f"Роли: {escape(item.role_a_name)} ↔ {escape(item.role_b_name)}",
+                ]
+            )
+        )
+
+    scenarios_block = "\n\n".join(scenario_lines) if scenario_lines else "Сценарии пока не добавлены."
+
     await message.answer(
-        "<b>Как проходит поединок</b>\n\n"
+        "<b>ℹ️ Справка</b>\n\n"
+        "<b>Как проходит поединок</b>\n"
         "• Поединок состоит из двух раундов.\n"
         "• Во втором раунде роли меняются.\n"
         "• После завершения три судьи дают итоговый разбор.\n\n"
@@ -394,7 +412,8 @@ async def how_it_works(message: Message) -> None:
         "2. Просто отправляйте реплики текстом или голосом.\n"
         f"3. Перейдите через <b>«{escape(NEXT_ROUND_BUTTON)}»</b> ко второму раунду.\n"
         f"4. Завершите поединок кнопкой <b>«{escape(FINISH_BUTTON)}»</b>.\n\n"
-        "На каждый раунд даётся 3 минуты.\n\n"
+        "<b>Сценарии</b>\n"
+        f"{scenarios_block}\n\n"
         "<b>Обратная связь</b>\n"
         "Если хотите оставить отзыв или предложить улучшение, начните сообщение с фразы <code>Обратная связь</code>.\n\n"
         "<b>Поддержать проект</b>\n"
