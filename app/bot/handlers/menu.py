@@ -46,6 +46,10 @@ MENU_TEXTS = {
 
 
 def _timer_hint(seconds: int) -> str:
+    if seconds % 60 == 0:
+        minutes = seconds // 60
+        unit = "минута" if minutes == 1 else "минуты" if minutes in {2, 3, 4} else "минут"
+        return f"⏱ На раунд: {minutes} {unit}."
     return f"⏱ На раунд: {seconds} сек."
 
 
