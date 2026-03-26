@@ -25,7 +25,8 @@ from app.services.round_timer_service import round_timer_service
 
 router = Router()
 
-START_BUTTON = "⚔️ Поединок"
+START_BUTTON = "⚔️ Готовый сценарий"
+RANDOM_SCENARIO_BUTTON = "🎲 Случайный сценарий"
 START_BUTTON_LEGACY = "⚔️ Начать поединок"
 CUSTOM_SCENARIO_BUTTON = "🎭 Свой сценарий"
 SCENARIOS_BUTTON = "📚 Сценарии"
@@ -410,6 +411,12 @@ async def _download_telegram_file(message: Message) -> Path:
 
 @router.message(F.text == START_BUTTON)
 async def start_duel_from_menu(message: Message) -> None:
+    await _start_duel(message)
+
+
+@router.message(F.text == RANDOM_SCENARIO_BUTTON)
+async def start_random_scenario_from_menu(message: Message) -> None:
+    # Используем стандартный старт дуэли без кода сценария — он уже выбирает случайный активный сценарий.
     await _start_duel(message)
 
 
