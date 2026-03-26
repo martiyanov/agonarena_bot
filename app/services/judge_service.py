@@ -105,6 +105,11 @@ class JudgeService:
         ]
 
     def summarize_final_verdict(self, verdicts: Sequence[JudgeVerdict]) -> str:
+        """Краткая сводка исхода поединка без детальных комментариев судей.
+
+        Детали по каждому судье выводятся отдельно на финальном экране,
+        чтобы не дублировать текст.
+        """
         wins = {"user": 0, "ai": 0, "draw": 0}
         for item in verdicts:
             wins[item.winner] += 1
@@ -118,10 +123,7 @@ class JudgeService:
             "ai": "Победа AI по мнению большинства судей.",
             "draw": "Судьи сочли поединок ничьей.",
         }[winner]
-        details = "\n".join(
-            f"- {self.JUDGE_LABELS.get(item.judge_type, item.judge_type)}: {item.comment}" for item in verdicts
-        )
-        return f"{header}\n{details}"
+        return header
 
     def _build_user_prompt(self, context: JudgeContext) -> str:
         return (

@@ -485,8 +485,11 @@ async def finish_duel_from_menu(message: Message) -> None:
         if duel is None:
             await message.answer("Сейчас нечего завершать: активного поединка нет.")
             return
+        # Если поединок уже завершён, просто показываем сохранённый итог без повторного запуска судей
         if duel.status == "finished":
-            await message.answer(f"Этот поединок уже завершён.\n\n{duel.final_verdict or ''}")
+            judge_results = await duel_service.list_judge_results(session, duel.id)
+            formatted = _format_final_verdict(judge_service, judge_results, duel.final_verdict or "")
+            await message.answer(formatted, parse_mode="HTML")
             return
 
         round_1 = await duel_service.get_round(session, duel.id, 1)
@@ -499,20 +502,29 @@ async def finish_duel_from_menu(message: Message) -> None:
         if round_2.status != "finished":
             await duel_service.complete_round(duel, round_2)
 
-        contexts = judge_service.build_contexts_for_duel(
-            duel=duel,
-            scenario_code=scenario.code,
-            round1_messages=await duel_service.list_messages_for_round(session, duel.id, 1),
-            round2_messages=await duel_service.list_messages_for_round(session, duel.id, 2),
-        )
-        verdicts = await judge_service.run_all_judges(contexts)
-        for verdict in verdicts:
-            session.add(await judge_service.save_verdict(duel, verdict))
+        # Если по дуэли уже есть сохранённые вердикты, не запускаем судей повторно,
+        # а используем существующие результаты (идемпотентность кнопки «Завершить»)
+        existing_results = await duel_service.list_judge_results(session, duel.id)
+        if existing_results:
+            final_verdict = duel.final_verdict or judge_service.summarize_final_verdict(existing_results)
+            formatted = _format_final_verdict(judge_service, existing_results, final_verdict)
+            await duel_service.finish_duel(duel, final_verdict)
+            await session.commit()
+        else:
+            contexts = judge_service.build_contexts_for_duel(
+                duel=duel,
+                scenario_code=scenario.code,
+                round1_messages=await duel_service.list_messages_for_round(session, duel.id, 1),
+                round2_messages=await duel_service.list_messages_for_round(session, duel.id, 2),
+            )
+            verdicts = await judge_service.run_all_judges(contexts)
+            for verdict in verdicts:
+                session.add(await judge_service.save_verdict(duel, verdict))
 
-        final_verdict = judge_service.summarize_final_verdict(verdicts)
-        formatted = _format_final_verdict(judge_service, verdicts, final_verdict)
-        await duel_service.finish_duel(duel, final_verdict)
-        await session.commit()
+            final_verdict = judge_service.summarize_final_verdict(verdicts)
+            formatted = _format_final_verdict(judge_service, verdicts, final_verdict)
+            await duel_service.finish_duel(duel, final_verdict)
+            await session.commit()
 
     await message.answer(formatted, parse_mode="HTML")
 
