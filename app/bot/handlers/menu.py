@@ -1,17 +1,21 @@
 from __future__ import annotations
 
+import json
 import random
 import tempfile
 from html import escape
 from pathlib import Path
+from time import time
 
 from aiogram import F, Router
 from aiogram.types import Message
 
+from app.db.models import Scenario
 from app.db.session import AsyncSessionLocal
 from app.services import (
     DuelService,
     JudgeService,
+    LLMService,
     OpponentService,
     OpponentTurnContext,
     ScenarioService,
@@ -23,6 +27,7 @@ router = Router()
 
 START_BUTTON = "⚔️ Поединок"
 START_BUTTON_LEGACY = "⚔️ Начать поединок"
+CUSTOM_SCENARIO_BUTTON = "🎭 Свой сценарий"
 SCENARIOS_BUTTON = "📚 Сценарии"
 RESULTS_BUTTON = "🏆 Итоги"
 RESULTS_BUTTON_LEGACY = "🏆 Результаты"
@@ -41,6 +46,7 @@ FINISH_BUTTON_LEGACY = "🏁 Завершить поединок"
 MENU_TEXTS = {
     START_BUTTON,
     START_BUTTON_LEGACY,
+    CUSTOM_SCENARIO_BUTTON,
     SCENARIOS_BUTTON,
     RESULTS_BUTTON,
     RESULTS_BUTTON_LEGACY,
@@ -56,6 +62,9 @@ MENU_TEXTS = {
     FINISH_BUTTON,
     FINISH_BUTTON_LEGACY,
 }
+
+# Пользовательские сценарии: после нажатия кнопки ждём одно следующее сообщение
+PENDING_CUSTOM_SCENARIO_USERS: set[int] = set()
 
 
 def _timer_hint(seconds: int) -> str:
@@ -148,6 +157,144 @@ async def _start_duel(message: Message, scenario_code: str | None = None) -> Non
     await message.answer(text, parse_mode="HTML")
 
 
+async def _build_custom_scenario_from_text(raw_text: str) -> dict:
+    clean = raw_text.strip()
+    llm = LLMService()
+    system_prompt = (
+        "Ты — аналитический ассистент по разбору конфликтных и управленческих ситуаций.\n\n"
+        "На вход тебе поступает текст, полученный из голосового сообщения (возможны ошибки распознавания, обрывки фраз, разговорная речь, лишние слова).\n\n"
+        "Твоя задача — восстановить смысл ситуации и преобразовать её в сценарий управленческого поединка.\n\n"
+        "Всегда возвращай ТОЛЬКО один JSON-объект без пояснений до или после, без markdown и без лишнего текста.\n\n"
+        "Структура JSON строго такая:\n"
+        "{\n"
+        "  \"title\": string,\n"
+        "  \"description\": string,\n"
+        "  \"role_a_name\": string,\n"
+        "  \"role_a_goal\": string,\n"
+        "  \"role_b_name\": string,\n"
+        "  \"role_b_goal\": string,\n"
+        "  \"opening_line_a\": string,\n"
+        "  \"opening_line_b\": string\n"
+        "}\n\n"
+        "⚙️ Правила обработки\n"
+        "1. Нормализация текста\n"
+        " • Исправь очевидные ошибки распознавания (ASR), если они мешают пониманию\n"
+        " • Убери паразитные слова и повторы\n"
+        " • Восстанови логическую последовательность событий\n"
+        "2. Определение сторон\n"
+        " • role_a_name — сторона, которая инициирует конфликт (обычно клиент / заявитель)\n"
+        " • role_b_name — сторона, к которой предъявляется претензия (исполнитель / менеджер / сервис)\n"
+        " • Названия ролей — короткие и конкретные (2–4 слова)\n"
+        "3. Цели сторон\n"
+        " • role_a_goal — конкретное требование или интерес (например: \"получить компенсацию за задержку\")\n"
+        " • role_b_goal — защитная или управленческая цель (например: \"избежать компенсации и сохранить клиента\")\n"
+        " • Формулируй чётко, без абстракций\n"
+        "4. Название (title)\n"
+        " • Краткое (до ~8 слов), отражает суть конфликта\n"
+        "5. Описание (description)\n"
+        " • 1–3 предложения, только факты ситуации, без оценок и эмоций\n"
+        "6. Реплики (диалог)\n"
+        " • opening_line_b — первая реакция стороны B (исполнителя), 1–2 предложения, без агрессии, но с попыткой оправдаться или объяснить\n"
+        " • opening_line_a — ответ стороны A на позицию B, 1–2 предложения, усиливает конфликт или давление\n"
+        "7. Ограничения\n"
+        " • Не выдумывай факты, которых нет — допускается разумное обобщение\n"
+        " • Не используй канцелярит\n"
+        " • Не добавляй ничего вне JSON\n"
+        " • Все поля должны быть заполнены."
+    )
+    user_prompt = (
+        "Пользователь описал ситуацию для управленческого поединка.\n"
+        "Текст получен из голосового сообщения и может содержать ошибки.\n\n"
+        "Проанализируй описание, восстанови смысл и заполни JSON строго в указанной структуре.\n\n"
+        f"Описание пользователя:\n{clean}"
+    )
+
+    raw = await llm.generate_text(system_prompt=system_prompt, user_prompt=user_prompt, temperature=0.3)
+    data = json.loads(raw)
+
+    def _get(key: str, default: str = "") -> str:
+        value = data.get(key, default) or default
+        return str(value).strip()
+
+    return {
+        "title": _get("title", "Свободный поединок"),
+        "description": _get("description", clean),
+        "role_a_name": _get("role_a_name", "Сторона A"),
+        "role_a_goal": _get("role_a_goal", ""),
+        "role_b_name": _get("role_b_name", "Сторона B"),
+        "role_b_goal": _get("role_b_goal", ""),
+        "opening_line_a": _get("opening_line_a", ""),
+        "opening_line_b": _get("opening_line_b", ""),
+    }
+
+
+async def _start_custom_duel(message: Message, user_text: str) -> None:
+    clean_text = user_text.strip()
+    if not clean_text:
+        await message.answer(
+            "Не получилось прочитать описание ситуации. Попробуйте ещё раз, "
+            "пару предложений: кто вы, кто вторая сторона и о чём спор."
+        )
+        return
+
+    async with AsyncSessionLocal() as session:
+        duel_service = DuelService()
+
+        try:
+            payload = await _build_custom_scenario_from_text(clean_text)
+        except Exception:
+            await message.answer(
+                "Я не смог оформить эту ситуацию в сценарий. Попробуйте описать её чуть конкретнее: "
+                "кто вы, кто вторая сторона и что именно хотите отработать.\n\n"
+                "Просто ответьте следующим сообщением — кнопку «🎭 Свой сценарий» нажимать ещё раз не нужно."
+            )
+            return
+
+        scenario = Scenario(
+            code=f"custom_{message.from_user.id}_{int(time())}",
+            title=payload["title"],
+            description=payload["description"],
+            category="custom",
+            difficulty="normal",
+            role_a_name=payload["role_a_name"],
+            role_a_goal=payload["role_a_goal"],
+            role_b_name=payload["role_b_name"],
+            role_b_goal=payload["role_b_goal"],
+            opening_line_a=payload["opening_line_a"] or "",
+            opening_line_b=payload["opening_line_b"] or "",
+            is_active=True,
+        )
+        session.add(scenario)
+        await session.flush()
+
+        duel = await duel_service.create_duel(session, telegram_user_id=message.from_user.id, scenario=scenario)
+        rounds = await duel_service.get_duel_rounds(session, duel.id)
+
+    round_1 = rounds[0]
+    text = "\n".join(
+        [
+            f"<b>Поединок #{duel.id}</b>",
+            f"🎭 <b>Своя ситуация:</b> {escape(scenario.title)}",
+            escape(scenario.description),
+            _timer_hint(duel.turn_time_limit_sec),
+            f"Роли:\n• Вы: <b>{escape(round_1.user_role)}</b>\n• Соперник (AI): <b>{escape(round_1.ai_role)}</b>",
+            "",
+            "<b>Первая реплика соперника (AI)</b>",
+            escape(round_1.opening_line),
+            "",
+            "<b>Что дальше</b>",
+            "1. Ответьте текстом или голосовым от лица вашей роли.",
+            "2. Дождитесь ответа соперника.",
+            "3. После ответа можно продолжить раунд или перейти дальше.",
+        ]
+    )
+    # Успешно стартовали пользовательский сценарий — выходим из режима ожидания описания
+    if message.from_user:
+        PENDING_CUSTOM_SCENARIO_USERS.discard(message.from_user.id)
+
+    await message.answer(text, parse_mode="HTML")
+
+
 async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: bool = False) -> None:
     clean_text = user_text.strip()
     if not clean_text:
@@ -173,9 +320,10 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
             return
 
         await duel_service.ensure_round_started(duel, round_obj)
+        await session.commit()
 
         seconds_left = duel_service.get_seconds_left(duel, round_obj)
-        if seconds_left:
+        if seconds_left is not None and seconds_left > 0:
             round_timer_service.schedule(
                 chat_id=message.chat.id,
                 duel_id=duel.id,
@@ -263,6 +411,15 @@ async def _download_telegram_file(message: Message) -> Path:
 @router.message(F.text == START_BUTTON)
 async def start_duel_from_menu(message: Message) -> None:
     await _start_duel(message)
+
+
+@router.message(F.text == CUSTOM_SCENARIO_BUTTON)
+async def start_custom_scenario_prompt(message: Message) -> None:
+    PENDING_CUSTOM_SCENARIO_USERS.add(message.from_user.id)
+    await message.answer(
+        "Опишите голосом или текстом ситуацию, роли и что хотите отработать. "
+        "Можно парой абзацев, без строгого формата."
+    )
 
 
 @router.message(F.text.regexp(r"^[a-z_]+$") & ~F.text.in_(MENU_TEXTS))
@@ -453,54 +610,9 @@ async def process_voice_turn(message: Message) -> None:
         if temp_path and temp_path.exists():
             temp_path.unlink(missing_ok=True)
 
-    await _run_turn(message, transcript, recognized_from_voice=True)
-
-
-@router.message(F.audio)
-async def process_audio_turn(message: Message) -> None:
-    transcription_service = TranscriptionService()
-    if not transcription_service.is_configured():
-        await message.answer("Распознавание аудио пока не настроено. Отправьте сообщение текстом.")
+    if message.from_user and message.from_user.id in PENDING_CUSTOM_SCENARIO_USERS:
+        await _start_custom_duel(message, transcript)
         return
-
-    temp_path: Path | None = None
-    try:
-        await message.answer("Аудио получил. Распознаю…")
-        temp_path = await _download_telegram_file(message)
-        transcript = await transcription_service.transcribe(temp_path, language="ru")
-    except Exception:
-        await message.answer("Не удалось распознать аудио. Попробуйте ещё раз или отправьте текст.")
-        return
-    finally:
-        if temp_path and temp_path.exists():
-            temp_path.unlink(missing_ok=True)
-
-    await _run_turn(message, transcript, recognized_from_voice=True)
-
-
-@router.message(F.text & ~F.text.in_(MENU_TEXTS))
-async def process_turn(message: Message) -> None:
-    await _run_turn(message, message.text)
-
-
-@router.message(F.voice)
-async def process_voice_turn(message: Message) -> None:
-    transcription_service = TranscriptionService()
-    if not transcription_service.is_configured():
-        await message.answer("Распознавание голоса пока не настроено. Отправьте сообщение текстом.")
-        return
-
-    temp_path: Path | None = None
-    try:
-        await message.answer("Голосовое получил. Распознаю…")
-        temp_path = await _download_telegram_file(message)
-        transcript = await transcription_service.transcribe(temp_path, language="ru")
-    except Exception:
-        await message.answer("Не удалось распознать голосовое. Попробуйте ещё раз или отправьте текст.")
-        return
-    finally:
-        if temp_path and temp_path.exists():
-            temp_path.unlink(missing_ok=True)
 
     await _run_turn(message, transcript, recognized_from_voice=True)
 
@@ -524,10 +636,19 @@ async def process_audio_turn(message: Message) -> None:
         if temp_path and temp_path.exists():
             temp_path.unlink(missing_ok=True)
 
+    if message.from_user and message.from_user.id in PENDING_CUSTOM_SCENARIO_USERS:
+        await _start_custom_duel(message, transcript)
+        return
+
     await _run_turn(message, transcript, recognized_from_voice=True)
 
 
 @router.message(F.text & ~F.text.in_(MENU_TEXTS))
 async def process_turn(message: Message) -> None:
+    # Если ждём описание пользовательского сценария — используем текст как исходник
+    if message.from_user and message.from_user.id in PENDING_CUSTOM_SCENARIO_USERS:
+        await _start_custom_duel(message, message.text)
+        return
+
     await _run_turn(message, message.text)
 

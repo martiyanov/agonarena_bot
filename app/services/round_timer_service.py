@@ -48,34 +48,41 @@ class RoundTimerService:
                 round_number,
                 delay_seconds,
             )
-            await asyncio.sleep(delay_seconds)
 
-            async with AsyncSessionLocal() as session:
-                duel_service = DuelService()
-                duel = await duel_service.get_duel(session, duel_id)
-                round_obj = await duel_service.get_round(session, duel_id, round_number)
+            while True:
+                await asyncio.sleep(delay_seconds)
 
-                if duel is None or round_obj is None:
-                    return
-                if round_obj.status != "in_progress":
-                    logger.info(
-                        "round timer: round already not in_progress (status=%s) for duel=%s round=%s",
-                        round_obj.status,
-                        duel_id,
-                        round_number,
-                    )
-                    return
-                if not duel_service.is_round_expired(duel, round_obj):
-                    logger.info(
-                        "round timer: deadline not reached yet for duel=%s round=%s",
-                        duel_id,
-                        round_number,
-                    )
-                    return
+                async with AsyncSessionLocal() as session:
+                    duel_service = DuelService()
+                    duel = await duel_service.get_duel(session, duel_id)
+                    round_obj = await duel_service.get_round(session, duel_id, round_number)
 
-                logger.info("round timer: completing round for duel=%s round=%s", duel_id, round_number)
-                await duel_service.complete_round(duel, round_obj)
-                await session.commit()
+                    if duel is None or round_obj is None:
+                        return
+                    if round_obj.status != "in_progress":
+                        logger.info(
+                            "round timer: round already not in_progress (status=%s) for duel=%s round=%s",
+                            round_obj.status,
+                            duel_id,
+                            round_number,
+                        )
+                        return
+
+                    seconds_left = duel_service.get_seconds_left(duel, round_obj)
+                    if seconds_left and seconds_left > 0:
+                        logger.info(
+                            "round timer: woke up early for duel=%s round=%s, sleeping remaining=%s",
+                            duel_id,
+                            round_number,
+                            seconds_left,
+                        )
+                        delay_seconds = seconds_left
+                        continue
+
+                    logger.info("round timer: completing round for duel=%s round=%s", duel_id, round_number)
+                    await duel_service.complete_round(duel, round_obj)
+                    await session.commit()
+                    break
 
             if not settings.telegram_bot_token:
                 return

@@ -23,3 +23,15 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def get_database_url_for_env() -> str:
+    """Выбираем БД в зависимости от окружения.
+
+    Для локальной разработки используем отдельную dev-базу,
+    чтобы не трогать боевую и не упираться в read-only.
+    """
+    env = settings.app_env.lower()
+    if env in {"dev", "development_local", "local"}:
+        return "sqlite+aiosqlite:///./data/agonarena_dev.db"
+    return settings.database_url

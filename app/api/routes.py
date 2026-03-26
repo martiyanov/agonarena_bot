@@ -215,3 +215,99 @@ async def finish_duel(duel_id: int) -> dict:
             "final_verdict": final_verdict,
             "judge_results": [v.model_dump() for v in verdicts],
         }
+
+
+class CustomScenarioRequest(BaseModel):
+    description: str
+
+
+@router.post("/test/custom-scenario")
+async def test_custom_scenario(payload: CustomScenarioRequest) -> dict:
+    """Тестовый эндпоинт для отладки пользовательских сценариев.
+
+    Принимает описание ситуации и прогоняет его через тот же пайплайн,
+    который используется для кнопки «Свой сценарий», но без Telegram-обвязки.
+    """
+    from app.bot.handlers.menu import _build_custom_scenario_from_text
+
+    text = (payload.description or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Description is empty")
+
+    try:
+        scenario_payload = await _build_custom_scenario_from_text(text)
+    except Exception as exc:  # noqa: BLE001
+        # Для API явно сигнализируем об ошибке пайплайна
+        raise HTTPException(status_code=500, detail=f"Failed to build scenario: {exc}") from exc
+
+    return scenario_payload
+
+
+class CustomDuelRequest(BaseModel):
+    description: str
+    telegram_user_id: int = 127583377
+
+
+@router.post("/test/custom-duel")
+async def test_custom_duel(payload: CustomDuelRequest) -> dict:
+    """Полный тестовый цикл, аналогичный кнопке «Свой сценарий» в Telegram.
+
+    1. Разбирает описание в структуру сценария.
+    2. Создаёт Scenario в БД (category="custom").
+    3. Создаёт Duel и раунды.
+    4. Возвращает базовую информацию для проверки.
+    """
+    from app.bot.handlers.menu import _build_custom_scenario_from_text
+    from app.db.models import Scenario
+
+    text = (payload.description or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Description is empty")
+
+    async with AsyncSessionLocal() as session:
+        duel_service = DuelService()
+
+        try:
+            scenario_payload = await _build_custom_scenario_from_text(text)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=f"Failed to build scenario: {exc}") from exc
+
+        scenario = Scenario(
+            code=f"test_custom_{payload.telegram_user_id}",
+            title=scenario_payload["title"],
+            description=scenario_payload["description"],
+            category="custom",
+            difficulty="normal",
+            role_a_name=scenario_payload["role_a_name"],
+            role_a_goal=scenario_payload["role_a_goal"],
+            role_b_name=scenario_payload["role_b_name"],
+            role_b_goal=scenario_payload["role_b_goal"],
+            opening_line_a=scenario_payload["opening_line_a"] or "",
+            opening_line_b=scenario_payload["opening_line_b"] or "",
+            is_active=True,
+        )
+        session.add(scenario)
+        await session.flush()
+
+        duel = await duel_service.create_duel(
+            session,
+            telegram_user_id=payload.telegram_user_id,
+            scenario=scenario,
+        )
+        rounds = await duel_service.get_duel_rounds(session, duel.id)
+
+        return {
+            "duel_id": duel.id,
+            "status": duel.status,
+            "scenario_code": scenario.code,
+            "scenario_title": scenario.title,
+            "rounds": [
+                {
+                    "round_number": r.round_number,
+                    "user_role": r.user_role,
+                    "ai_role": r.ai_role,
+                    "opening_line": r.opening_line,
+                }
+                for r in rounds
+            ],
+        }

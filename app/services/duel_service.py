@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timedelta
 
 from sqlalchemy import desc, select
@@ -94,7 +95,7 @@ class DuelService:
         deadline = self.get_round_deadline(duel, round_obj)
         if deadline is None:
             return None
-        return max(0, int((deadline - datetime.utcnow()).total_seconds()))
+        return max(0, math.ceil((deadline - datetime.utcnow()).total_seconds()))
 
     def is_round_expired(self, duel: Duel, round_obj: DuelRound) -> bool:
         deadline = self.get_round_deadline(duel, round_obj)
@@ -151,4 +152,3 @@ class DuelService:
             select(JudgeResult).where(JudgeResult.duel_id == duel_id).order_by(JudgeResult.id.asc())
         )
         return list(result.scalars().all())
-
