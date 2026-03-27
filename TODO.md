@@ -64,12 +64,33 @@
   - **Effort:** 3
   - **Score:** 114.33
 
-## CURRENT
+### AG-007
+- **Title:** Improve scenario picker message layout in Telegram
+- **Type:** ux
+- **Status:** DONE
+- **Priority:** P1
+- **Why:** список из 10 сообщений может быть визуально шумным
+- **Done_when:** карточки сценариев легче сканируются, без потери MVP-простоты
+- **Risks:** легко расширить scope
+- **RICE:**
+  - **Reach:** 7
+  - **Impact:** 7
+  - **Confidence:** 7
+  - **Effort:** 3
+  - **Score:** 114.33
+  - **Accepted:** 2026-03-27 — Telegram acceptance PASS
+  - **UX_DECISION:** Variant B confirmed — цифры без emoji (cleaner scan, less visual noise)
+  - **Closure scope:**
+    - Delivery policy исправлена и подтверждена
+    - Implementation применён в Docker runtime
+    - Telegram acceptance PASS (user selected Variant B)
+
+## DONE
 
 ### AG-005
 - **Title:** Manual production acceptance for scenario picker UX
 - **Type:** acceptance
-- **Status:** CURRENT
+- **Status:** DONE
 - **Priority:** P0
 - **Why:** задача не считается завершённой до проверки в Telegram на production
 - **Done_when:** подтверждён flow `🎯 Выбрать сценарий` -> 10 сценариев -> `Начать сценарий` -> обычный duel-flow
@@ -80,6 +101,7 @@
   - **Confidence:** 6
   - **Effort:** 2
   - **Score:** 216
+  - **Accepted:** 2026-03-27 — Telegram acceptance PASS
 
 ## NEXT TOP 5
 
@@ -97,21 +119,6 @@
   - **Confidence:** 9
   - **Effort:** 2
   - **Score:** 288
-
-### AG-007
-- **Title:** Improve scenario picker message layout in Telegram
-- **Type:** ux
-- **Status:** TODO
-- **Priority:** P1
-- **Why:** список из 10 сообщений может быть визуально шумным
-- **Done_when:** карточки сценариев легче сканируются, без потери MVP-простоты
-- **Risks:** легко расширить scope
-- **RICE:**
-  - **Reach:** 7
-  - **Impact:** 7
-  - **Confidence:** 7
-  - **Effort:** 3
-  - **Score:** 114.33
 
 ### AG-008
 - **Title:** Normalize judge output by round

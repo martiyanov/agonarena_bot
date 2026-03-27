@@ -44,20 +44,23 @@
 6. Only after manual PASS -> commit and push to GitHub
 
 ## Current active task
-- Telegram UX acceptance for scenario picker / round-end flow on production
+- **AG-006:** Commit and push validated release after manual PASS
+- **Status:** IN PROGRESS (post-AG-007 closure)
 
-## Current blocker
-- Need manual Telegram acceptance to confirm the deployed runtime matches the intended UX in the real client
+## Latest closure
+- **AG-007:** Telegram acceptance PASS (2026-03-27) — scenario picker message layout improved
+  - **UX_DECISION:** Variant B confirmed — цифры без emoji
+  - **Scope:** delivery policy fixed, Docker implementation applied, user acceptance confirmed
+  - **Files updated:** TODO.md, PROJECT_STATE.md
 
 ## Next real step
-- Manually verify in Telegram:
-  1. `🎯 Выбрать сценарий`
-  2. list of 10 scenarios
-  3. inline button `Начать сценарий`
-  4. normal duel start
-  5. `🏁 Завершить раунд` flow
+- Complete AG-006 release commit and push to GitHub
+- Blockers: None (AG-007 closed successfully)
 
 ## Notes
 - duel-flow tests subtask is complete
 - cleanup of temporary debug diff is complete
 - runtime mismatch issue was found and resolved via local container redeploy
+- **AG-011 voice fix:** confirmed via `tests/test_voice_routing.py` 6/6 PASS
+- **AG-006 release:** committed & pushed (`c722b98` on `feature/menu-ux-refresh`)
+- **Acceptance protocol:** created `ACCEPTANCE.md` for reproducible manual testing
