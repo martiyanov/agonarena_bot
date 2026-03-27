@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.db.session import AsyncSessionLocal
+from app.db import session as db_session
 from app.services import DuelService, JudgeService, OpponentService, OpponentTurnContext, ScenarioService
 
 router = APIRouter(prefix="/api")
@@ -13,7 +13,7 @@ class TurnRequest(BaseModel):
 
 @router.get("/scenarios")
 async def list_scenarios() -> list[dict]:
-    async with AsyncSessionLocal() as session:
+    async with db_session.AsyncSessionLocal() as session:
         items = await ScenarioService().list_active(session)
         return [
             {
@@ -33,7 +33,7 @@ async def list_scenarios() -> list[dict]:
 
 @router.post("/duels/start/{scenario_code}")
 async def start_duel(scenario_code: str, telegram_user_id: int = 127583377) -> dict:
-    async with AsyncSessionLocal() as session:
+    async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
         scenario = await duel_service.get_scenario_by_code(session, scenario_code)
         if scenario is None:
@@ -62,7 +62,7 @@ async def start_duel(scenario_code: str, telegram_user_id: int = 127583377) -> d
 
 @router.get("/duels/{duel_id}")
 async def get_duel(duel_id: int) -> dict:
-    async with AsyncSessionLocal() as session:
+    async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
         duel = await duel_service.get_duel(session, duel_id)
         if duel is None:
@@ -97,7 +97,7 @@ async def get_duel(duel_id: int) -> dict:
 
 @router.post("/duels/{duel_id}/turn")
 async def submit_turn(duel_id: int, payload: TurnRequest) -> dict:
-    async with AsyncSessionLocal() as session:
+    async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
         duel = await duel_service.get_duel(session, duel_id)
         if duel is None:
@@ -144,7 +144,7 @@ async def submit_turn(duel_id: int, payload: TurnRequest) -> dict:
 
 @router.post("/duels/{duel_id}/next-round")
 async def next_round(duel_id: int) -> dict:
-    async with AsyncSessionLocal() as session:
+    async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
         duel = await duel_service.get_duel(session, duel_id)
         if duel is None:
@@ -156,6 +156,8 @@ async def next_round(duel_id: int) -> dict:
         round_2 = await duel_service.get_round(session, duel.id, 2)
         if round_1 is None or round_2 is None:
             raise HTTPException(status_code=404, detail="Rounds not found")
+        if round_1.status != "in_progress":
+            raise HTTPException(status_code=409, detail="Round 1 is not in progress")
 
         await duel_service.complete_round(duel, round_1)
         await duel_service.ensure_round_started(duel, round_2)
@@ -178,13 +180,15 @@ async def next_round(duel_id: int) -> dict:
 
 @router.post("/duels/{duel_id}/finish")
 async def finish_duel(duel_id: int) -> dict:
-    async with AsyncSessionLocal() as session:
+    async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
         judge_service = JudgeService()
 
         duel = await duel_service.get_duel(session, duel_id)
         if duel is None:
             raise HTTPException(status_code=404, detail="Duel not found")
+        if duel.status == "finished":
+            raise HTTPException(status_code=409, detail="Duel already finished")
 
         round_1 = await duel_service.get_round(session, duel.id, 1)
         round_2 = await duel_service.get_round(session, duel.id, 2)
@@ -237,7 +241,6 @@ async def test_custom_scenario(payload: CustomScenarioRequest) -> dict:
     try:
         scenario_payload = await _build_custom_scenario_from_text(text)
     except Exception as exc:  # noqa: BLE001
-        # Для API явно сигнализируем об ошибке пайплайна
         raise HTTPException(status_code=500, detail=f"Failed to build scenario: {exc}") from exc
 
     return scenario_payload
@@ -264,7 +267,7 @@ async def test_custom_duel(payload: CustomDuelRequest) -> dict:
     if not text:
         raise HTTPException(status_code=400, detail="Description is empty")
 
-    async with AsyncSessionLocal() as session:
+    async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
 
         try:

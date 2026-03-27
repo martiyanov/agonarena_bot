@@ -1,20 +1,26 @@
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 
+SELECT_SCENARIO_BUTTON = "🎯 Выбрать сценарий"
+RANDOM_SCENARIO_BUTTON = "🎲 Случайный сценарий"
+CUSTOM_SCENARIO_BUTTON = "🎭 Свой сценарий"
+END_ROUND_BUTTON = "🏁 Завершить раунд"
+RULES_BUTTON = "ℹ️ Справка"
+
+
 def build_main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [
-                KeyboardButton(text="⚔️ Готовый сценарий"),
-                KeyboardButton(text="🎲 Случайный сценарий"),
-                KeyboardButton(text="🎭 Свой сценарий"),
+                KeyboardButton(text=SELECT_SCENARIO_BUTTON),
+                KeyboardButton(text=RANDOM_SCENARIO_BUTTON),
+                KeyboardButton(text=CUSTOM_SCENARIO_BUTTON),
             ],
             [
-                KeyboardButton(text="⏭️ Раунд 2"),
-                KeyboardButton(text="🏁 Завершить"),
+                KeyboardButton(text=END_ROUND_BUTTON),
             ],
             [
-                KeyboardButton(text="ℹ️ Справка"),
+                KeyboardButton(text=RULES_BUTTON),
             ],
         ],
         resize_keyboard=True,

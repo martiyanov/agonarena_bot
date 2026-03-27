@@ -7,7 +7,7 @@ from collections.abc import Awaitable
 from aiogram import Bot
 
 from app.config import settings
-from app.db.session import AsyncSessionLocal
+from app.db import session as db_session
 from app.services.duel_service import DuelService
 
 
@@ -52,7 +52,7 @@ class RoundTimerService:
             while True:
                 await asyncio.sleep(delay_seconds)
 
-                async with AsyncSessionLocal() as session:
+                async with db_session.AsyncSessionLocal() as session:
                     duel_service = DuelService()
                     duel = await duel_service.get_duel(session, duel_id)
                     round_obj = await duel_service.get_round(session, duel_id, round_number)
@@ -90,9 +90,9 @@ class RoundTimerService:
             bot = Bot(token=settings.telegram_bot_token)
             try:
                 if round_number == 1:
-                    text = "⏱ Время первого раунда вышло. Нажмите «⏭️ Раунд 2», чтобы продолжить."
+                    text = "⏱ Время первого раунда вышло. Нажмите «🏁 Завершить раунд», чтобы перейти дальше."
                 else:
-                    text = "⏱ Время второго раунда вышло. Нажмите «🏁 Завершить», чтобы получить итог."
+                    text = "⏱ Время второго раунда вышло. Нажмите «🏁 Завершить раунд», чтобы получить итог."
                 logger.info("round timer: sending timeout message for duel=%s round=%s", duel_id, round_number)
                 await bot.send_message(chat_id=chat_id, text=text)
             finally:
