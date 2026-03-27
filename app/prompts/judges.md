@@ -37,3 +37,5 @@
 Верни JSON с полями:
 - winner
 - comment
+- round1_comment
+- round2_comment

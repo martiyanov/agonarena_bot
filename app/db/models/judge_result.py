@@ -12,3 +12,5 @@ class JudgeResult(Base):
     judge_type: Mapped[str] = mapped_column(String(64), index=True)
     winner: Mapped[str] = mapped_column(String(32))
     comment: Mapped[str] = mapped_column(Text)
+    round1_comment: Mapped[str] = mapped_column(Text, nullable=True)
+    round2_comment: Mapped[str] = mapped_column(Text, nullable=True)

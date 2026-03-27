@@ -1,14 +1,16 @@
 # Agon Arena — ARCHITECTURE
 
-## Architecture
+## High-level layers
 
 ### 1. Telegram layer
 Отвечает за:
 - `/start`
 - главное меню
 - выбор сценария
-- старт поединка
-- показ результатов
+- запуск поединка
+- ходы пользователя
+- round-end / finish UX
+- показ итогов
 
 Технология:
 - aiogram
@@ -16,16 +18,20 @@
 
 ### 2. Application layer
 Отвечает за:
-- создание поединка
-- создание 2 раундов
+- создание `Duel`
+- создание `DuelRound`
 - смену ролей
-- сохранение состояния
-- подготовку результата для судей
+- сохранение сообщений
+- переходы состояний
+- завершение поединка
+- запуск judge pipeline
 
 Основные сервисы:
 - `ScenarioService`
 - `DuelService`
-- позже: `JudgeService`, `OpponentService`
+- `OpponentService`
+- `JudgeService`
+- `RoundTimerService`
 
 ### 3. Storage layer
 Текущая версия использует SQLite.
@@ -34,39 +40,49 @@
 - сценарии
 - поединки
 - раунды
+- сообщения
 - результаты судей
 
 ### 4. AI layer
-Будет состоять из двух независимых логик:
+Состоит из двух независимых частей:
 - AI-оппонент
 - 3 виртуальных судьи
 
-Первая версия использует один LLM provider через OpenAI-compatible API.
+Используется OpenAI-compatible API с fallback-логикой.
 
-## Основной flow
+## Main runtime flow
+1. Пользователь открывает Telegram-бота.
+2. Бот показывает reply keyboard.
+3. Пользователь выбирает сценарий или другой режим старта.
+4. Backend создаёт duel и 2 раунда.
+5. Идёт раунд 1.
+6. Пользователь завершает раунд.
+7. Идёт раунд 2 со сменой ролей.
+8. Пользователь завершает поединок.
+9. Судьи выдают вердикт.
 
-1. Пользователь приходит в Telegram-бота.
-2. Бот показывает главное меню.
-3. Пользователь выбирает сценарий.
-4. Backend создаёт `Duel` и 2 `DuelRound`.
-5. Проходит раунд 1.
-6. Роли меняются.
-7. Проходит раунд 2.
-8. 3 judge pipelines выносят вердикты.
-9. Бот показывает итог.
+## Current UX architecture decisions
+- Главное меню — reply keyboard.
+- Выбор сценария — сообщение в чате + inline buttons.
+- Старт конкретного сценария использует существующий duel-flow.
+- Внутри поединка основная action-кнопка: `🏁 Завершить раунд`.
 
-## Инфраструктура
+## Infra
+- один Docker image
+- один runtime container: `agonarena-bot-app`
+- deploy локально на VDS
+- SQLite mounted через volume `./data:/app/data`
 
-- Docker / docker-compose only
-- один контейнер приложения
-- SQLite в volume
-- health endpoint `/health`
+## Testing and release
+- Source of truth for duel-flow regression: `tests/test_duel_flow.py`
+- Canonical command:
+  `PYTHONPATH=. ./.venv/bin/pytest tests/test_duel_flow.py -q`
+- Deploy only after green tests
+- GitHub push only after successful production manual acceptance
 
-## Ограничения текущей версии
-
-- только текст
-- только человек vs AI
-- без аудио
-- без Redis
-- без PostgreSQL
-- без multi-user battle rooms
+## Constraints
+- single instance only
+- no Redis
+- no PostgreSQL
+- no pagination for scenarios in MVP
+- no separate admin panel in current stage

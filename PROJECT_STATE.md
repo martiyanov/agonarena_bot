@@ -1,59 +1,106 @@
 # PROJECT_STATE.md
 
-## Product frame
+## Product
 - Product: Agon Arena Bot
 - Interface: Telegram bot
-- Current version: text only
-- Duel format: express management duel
-- Opponent mode in v1: human vs AI
-- Rounds: 2
-- Role swap: yes, in round 2
-- Judges: 3
-  - owner
-  - team
-  - sending_to_negotiation
+- Version stage: MVP in active polishing
+- Core mode: human vs AI
+- Duel format: 2 rounds + role swap + 3 judges
+- Main storage: SQLite
+- Runtime: single Docker container on VDS
 
-## Technical frame
-- Stack: Python + FastAPI + aiogram
-- Storage: SQLite
-- Infra: Docker / docker-compose only
-- Current app mode: single instance on VDS
+## Runtime facts
+- Local tests and runtime live on the same host
+- GitHub is storage, not deployment source
+- Production acceptance happens manually in Telegram after local redeploy
 
-## Progress
-### Done
-- repository cloned
-- docker-first runnable skeleton added
-- health endpoint working in container
-- core domain models added:
-  - Scenario
-  - Duel
-  - DuelRound
-  - DuelMessage
-  - JudgeResult
-- sqlite tables are created on startup
-- scenario seed strategy implemented via `seeds/scenarios.json`
-- duel lifecycle service implemented
-- round generation logic implemented
-- telegram start / menu flow implemented
-- round message persistence implemented
-- next round transition implemented
-- duel finish + judge pipeline implemented
-- API endpoints added for duel lifecycle
-- prompts added for AI opponent and judges
-- LLM-first / fallback execution added for opponent and judges
+## What is working now
+- FastAPI app with webhook and health endpoint
+- aiogram Telegram layer
+- scenario seeds from `seeds/scenarios.json`
+- duel lifecycle API
+- 2-round duel flow with role swap
+- finish + judges pipeline
+- text and voice user input
+- stable writable test DB isolation for duel-flow tests
+- contract checks for repeat finish / invalid next-round
+- Telegram UX button `🏁 Завершить раунд`
+- menu button `🎯 Выбрать сценарий`
+- scenario picker MVP in code and deployed runtime
 
-### In progress
-- light cleanup / test pass
+## Verified evidence
+- canonical test command:
+  `PYTHONPATH=. ./.venv/bin/pytest tests/test_duel_flow.py -q`
+- latest known green result:
+  `6 passed in 57.51s`
+- runtime was redeployed and checked from inside container
 
-### Next
-1. add automated tests for duel lifecycle
-2. improve judge heuristics and scoring rubric
-3. improve telegram UX with scenario selection buttons instead of code entry
-4. add richer duel analytics and history
+## Current release policy
+1. Change code in workspace
+2. Run local pytest
+3. If tests pass -> local deploy to `agonarena-bot-app`
+4. Verify runtime matches workspace
+5. Manual acceptance in Telegram on production
+6. Only after manual PASS -> commit and push to GitHub
 
-## Local commits so far
-- 05bad53 chore: initialize agonarena bot scaffold
-- ba54345 docs: simplify current stack to sqlite
-- 32da835 docs: require docker-first current setup
-- 7edce4b feat: add docker-first runnable app skeleton
-- 75f8a56 feat: add core duel domain models
+## Current active task
+- **AG-006:** Commit and push validated release after manual PASS
+- **Status:** IN PROGRESS (post-AG-007 closure)
+
+## Latest closure
+- **AG-007:** Telegram acceptance PASS (2026-03-27) — scenario picker message layout improved
+  - **UX_DECISION:** Variant B confirmed — цифры без emoji
+  - **Scope:** delivery policy fixed, Docker implementation applied, user acceptance confirmed
+  - **Files updated:** TODO.md, PROJECT_STATE.md
+
+## Next real step
+- Complete AG-006 release commit and push to GitHub
+- Blockers: None (AG-007 closed successfully)
+
+## Notes
+- duel-flow tests subtask is complete
+- cleanup of temporary debug diff is complete
+- runtime mismatch issue was found and resolved via local container redeploy
+- **AG-011 voice fix:** confirmed via `tests/test_voice_routing.py` 6/6 PASS
+- **AG-006 release:** committed & pushed (`c722b98` on `feature/menu-ux-refresh`)
+- **Acceptance protocol:** created `ACCEPTANCE.md` for reproducible manual testing
+
+## Token Efficiency Analysis (AG-015)
+
+**Идея:** Оценить, где теряются токены в pipeline разработки задач.
+
+**Scope для анализа:**
+- PM ↔ ANALYST ↔ DEV ↔ ARCH ↔ TEST — расход токенов на каждую роль
+- Delivery в Telegram — OWNER_SUMMARY, PM QUESTION, NEXT TASK
+- Лишние вопросы / дублирование / verbose formatting
+- Subagent overhead — сколько токенов тратится на координацию
+
+**План:**
+1. Сначала analysis phase (без оптимизаций)
+2. Потом решение: отдельная роль или использование ANALYST
+
+**Статус:** Задача добавлена в TODO.md (AG-015, P1)
+
+---
+
+## Pipeline Orchestration Bug (AG-016)
+
+**Проблема:** Pipeline не переходит автоматически DEV → TEST.
+
+**Факты:**
+- DEV завершился (READY_FOR_TEST: yes)
+- TEST subagent не был spawned автоматически
+- Pipeline завис, требовался manual запуск TEST
+- AG-009 TEST пришлось запускать вручную
+
+**Текущее поведение:**
+```
+PM → DEV → [STALL] → (manual trigger) → TEST → OWNER_SUMMARY
+```
+
+**Ожидаемое поведение:**
+```
+PM → DEV → [auto] → TEST → OWNER_SUMMARY
+```
+
+**Статус:** Задача добавлена в TODO.md (AG-016, P0)
