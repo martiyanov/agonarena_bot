@@ -89,7 +89,13 @@ async def get_duel(duel_id: int) -> dict:
                 for item in rounds
             ],
             "judge_results": [
-                {"judge_type": item.judge_type, "winner": item.winner, "comment": item.comment}
+                {
+                    "judge_type": item.judge_type, 
+                    "winner": item.winner, 
+                    "comment": item.comment,
+                    "round1_comment": item.round1_comment,
+                    "round2_comment": item.round2_comment
+                }
                 for item in judge_results
             ],
         }

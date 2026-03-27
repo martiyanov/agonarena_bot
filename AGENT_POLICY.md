@@ -199,21 +199,15 @@ PM может вручную переопределить автоматичес
 
 ```markdown
 ### ROLE_DECISION
-
-| Роль | Решение | Почему |
-|------|---------|--------|
-| ANALYST | yes/no | <причина> |
-| ARCH | yes/no | <причина> |
+- ANALYST: yes/no — <причина>
+- ARCH: yes/no — <причина>
 ```
 
 **Пример:**
 ```markdown
 ### ROLE_DECISION
-
-| Роль | Решение | Почему |
-|------|---------|--------|
-| ANALYST | yes | UX task — выбор между variant A/B |
-| ARCH | no | Изменения в одном компоненте, <50 LOC |
+- ANALYST: yes — UX task, выбор между variant A/B
+- ARCH: no — изменения в одном компоненте, <50 LOC
 ```
 
 ---
@@ -279,23 +273,17 @@ PM может вручную переопределить автоматичес
 
 ```markdown
 ### ROLE_COST
-
-| Метрика | Значение |
-|---------|----------|
-| analyst_calls | N |
-| arch_calls | N |
-| cost_control_triggered | yes/no |
+- analyst_calls: N
+- arch_calls: N
+- cost_control_triggered: yes/no
 ```
 
 **Пример:**
 ```markdown
 ### ROLE_COST
-
-| Метрика | Значение |
-|---------|----------|
-| analyst_calls | 1 |
-| arch_calls | 0 |
-| cost_control_triggered | no |
+- analyst_calls: 1
+- arch_calls: 0
+- cost_control_triggered: no
 ```
 
 **cost_control_triggered = yes если:**
@@ -330,48 +318,21 @@ PM может вручную переопределить автоматичес
 #### Decision Flow Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ PM: Receive task                                            │
-│ INPUT: task_description, task_type, estimated_scope         │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│ ANALYST CHECK:                                              │
-│ - task_type == UX?                                          │
-│ - Contains: "вариант", "layout", "UX", "выбор", "A/B"?     │
-│ - Ambiguity present?                                        │
-│                                                             │
-│ → YES: use_analyst = true                                   │
-│ → NO: use_analyst = false                                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│ DEV: Implement (always)                                     │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│ ARCH CHECK:                                                 │
-│ - estimated_scope > 100 LOC?                                │
-│ - changed_files > 1?                                        │
-│ - Contains: "refactor", "архитектура", "state", ...?       │
-│ - Integration / external dependency?                        │
-│                                                             │
-│ → YES: use_arch = true                                      │
-│ → NO: use_arch = false                                      │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│ TEST: Verify (always)                                       │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│ OWNER_SUMMARY + ROLE_DECISION log                           │
-└─────────────────────────────────────────────────────────────┘
+1. PM: Receive task (task_description, task_type, estimated_scope)
+   ↓
+2. ANALYST CHECK: task_type==UX? OR contains "вариант/layout/UX/выбор/A/B"? OR ambiguity?
+   → YES: use_analyst = true
+   → NO: use_analyst = false
+   ↓
+3. DEV: Implement (always)
+   ↓
+4. ARCH CHECK: estimated_scope>100 LOC? OR changed_files>1? OR contains "refactor/архитектура/state"? OR integration risk?
+   → YES: use_arch = true
+   → NO: use_arch = false
+   ↓
+5. TEST: Verify (always)
+   ↓
+6. OWNER_SUMMARY + ROLE_DECISION log
 ```
 
 ---
@@ -736,16 +697,16 @@ sessions_send({
 
 ```
 1. Есть ли P0 задачи в TODO.md?
-   ├─ YES → Выбрать P0 с highest RICE
-   └─ NO → перейти к шагу 2
+   - YES → Выбрать P0 с highest RICE
+   - NO → перейти к шагу 2
 
 2. Есть ли P1 задачи в TODO.md?
-   ├─ YES → Выбрать P1 с highest RICE
-   └─ NO → перейти к шагу 3
+   - YES → Выбрать P1 с highest RICE
+   - NO → перейти к шагу 3
 
 3. Есть ли P2/P3 задачи?
-   ├─ YES → Предложить top P2
-   └─ NO → "Backlog пуст, ждём новых задач"
+   - YES → Предложить top P2
+   - NO → "Backlog пуст, ждём новых задач"
 ```
 
 ---
@@ -974,6 +935,12 @@ sessions_spawn({
 })
 ```
 
+**Implementation:**
+- Auto-spawn mechanism implemented in `scripts/auto_test_spawner.py`
+- Monitors session files for READY_FOR_TEST marker
+- Includes 5-second fallback timer to ensure TEST spawn
+- See `PIPELINE_ORCHESTRATION.md` for full implementation details
+
 ---
 
 ### ЗАПРЕЩЕНО
@@ -1074,16 +1041,15 @@ sessions_spawn({
 
 **Стабильное состояние:**
 ```
-┌─────────────────────────────────────┐
-│ ✅ TEST PASS                        │
-│ ✅ Delivery: OK                     │
-│ ✅ Pipeline: no stalled handoffs    │
-│ ✅ Task: AG-XXX → DONE              │
-│ ✅ DEVLOG.md: обновлён              │
-│ ✅ TODO.md: статус обновлён         │
-└─────────────────────────────────────┘
-              ↓
-        PUSH TO ORIGIN
+[CHECKPOINT]
+- ✅ TEST PASS
+- ✅ Delivery: OK
+- ✅ Pipeline: no stalled handoffs
+- ✅ Task: AG-XXX → DONE
+- ✅ DEVLOG.md: обновлён
+- ✅ TODO.md: статус обновлён
+     ↓
+PUSH TO ORIGIN
 ```
 
 ---
@@ -1124,4 +1090,576 @@ sessions_spawn({
 
 ---
 
-_Версия: 1.9 | Создано: 2026-03-27 | Updated: GIT_WORKFLOW_RULES_
+## 8. TOKEN_OBSERVABILITY
+
+**Проблема:** Нет видимости расхода токенов на pipeline этапы.
+
+**Решение:** Lightweight token tracking без новой роли.
+
+---
+
+### RULES
+
+1. **НЕ создавать новую роль** — использовать существующие
+2. **Использовать TEST или OWNER_SUMMARY** — добавить token блок
+3. **НЕ делать сложные вычисления** — только approximate
+4. **НЕ вызывать дополнительные модели** — только наблюдение
+
+---
+
+### TOKEN_USAGE BLOCK
+
+**Каждый OWNER_SUMMARY должен включать:**
+
+```markdown
+### TOKEN_USAGE
+- approx_prompt_tokens: N
+- approx_completion_tokens: N
+- largest_step: PM/DEV/TEST/ARCH
+- optimization_hint: <1 строка>
+```
+
+**Пример:**
+```markdown
+### TOKEN_USAGE
+- approx_prompt_tokens: 15000
+- approx_completion_tokens: 3500
+- largest_step: DEV
+- optimization_hint: DEV context можно сжать на 20%
+```
+
+---
+
+### ESTIMATION (Lightweight)
+
+**Метод:**
+- Prompt tokens: сумма input токенов всех stages
+- Completion tokens: сумма output токенов всех stages
+- Largest step: stage с максимальным input+output
+- Optimization hint: 1 строка от TEST или PM
+
+**Источники:**
+- Model provider API (если доступно)
+- Или approximate по размеру context
+
+---
+
+### OPTIMIZATION_HINT EXAMPLES
+
+| Ситуация | Hint |
+|----------|------|
+| DEV context большой | "DEV context можно сжать на N%" |
+| PM задаёт много вопросов | "PM questions можно сократить" |
+| TEST дублирует контекст | "TEST может использовать дельту" |
+| ARCH не вызывался | "ARCH не требовался — ok" |
+
+---
+
+### INTEGRATION
+
+**Где добавлять:**
+- В конец OWNER_SUMMARY
+- После ROLE_COST и ROLE_DECISION
+
+**Кто заполняет:**
+- TEST subagent (после завершения проверок)
+- Или PM (при финальном OWNER_SUMMARY)
+
+---
+
+## 9. VERBOSITY_CONTROL
+
+**Проблема:** Pipeline генерирует избыточные сообщения → рост токенов и шум.
+
+**Решение:** Строгие лимиты на длину ответов для каждой роли.
+
+---
+
+### VERBOSITY_POLICY
+
+**Принцип:** Краткость > полнота
+
+**Правило:** Если сомнение → выбирать более короткий вариант
+
+---
+
+### ROLE LIMITS
+
+| Роль | Лимит | Содержание |
+|------|-------|------------|
+| **PM** | ≤ 5 строк | Только суть (если не вопрос) |
+| **DEV** | ≤ 10 строк | Только изменения + READY_FOR_TEST |
+| **TEST** | ≤ 5 строк | Только результат (PASS/FAIL + 1 причина) |
+| **OWNER_SUMMARY** | ≤ 10 строк | Без дублирования |
+
+---
+
+### ЗАПРЕЩЕНО
+
+| Паттерн | Почему |
+|---------|--------|
+| ❌ Пересказ предыдущих шагов |already в контексте |
+| ❌ Длинные объяснения без запроса | Трата токенов |
+| ❌ Повтор контекста |already в session history |
+| ❌ "Объяснения ради объяснений" | Не добавляет ценности |
+
+---
+
+### EXAMPLES
+
+**PM (правильно):**
+```
+📌 NEXT TASK: AG-016
+
+Почему: Pipeline bug блокирует интеграцию
+Scope: Исправить DEV→TEST handoff
+
+Запустить? (yes/no)
+```
+
+**PM (неправильно):**
+```
+📌 NEXT TASK SUGGESTION
+
+После завершения AG-009 и AG-015, следующая задача 
+в backlog это AG-016, которая имеет приоритет P0, 
+потому что pipeline orchestration bug блокирует 
+дальнейшую интеграцию и требует исправления...
+```
+
+**DEV (правильно):**
+```
+CHANGES:
+- menu.py: feedback button added
+- config.py: FEEDBACK_OWNER_USER_ID added
+
+READY_FOR_TEST: yes
+```
+
+**TEST (правильно):**
+```
+TEST_REPORT:
+- BUTTON_CHECK: ok
+- HANDLER_CHECK: ok
+- DELIVERY_CHECK: ok
+
+TEST_DECISION: PASS
+```
+
+---
+
+### PRIORITY
+
+```
+1. Краткость
+2. Полнота (если не противоречит 1)
+3. Объяснения (только по запросу)
+```
+
+---
+
+### INTEGRATION
+
+**Где применять:**
+- Все user-facing сообщения
+- Все pipeline handoff сообщения
+- Все OWNER_SUMMARY компоненты
+
+**Кто соблюдает:**
+- PM, ANALYST, DEV, ARCH, TEST — все роли
+
+---
+
+## 10. CONTEXT_PRUNING
+
+**Проблема:** Контекст растёт между шагами pipeline → лишние prompt_tokens.
+
+**Решение:** Передавать только необходимый минимум контекста.
+
+---
+
+### CONTEXT_POLICY
+
+**Перед каждым шагом передавать только:**
+1. Текущую задачу (task description)
+2. Результат предыдущего шага (1 блок)
+3. Необходимые маркеры (READY_FOR_TEST и т.д.)
+
+---
+
+### MAX_CONTEXT_BLOCKS = 3
+
+**Структура:**
+```
+[1] TASK: <текущая задача>
+[2] LAST_RESULT: <результат предыдущего шага>
+[3] MARKERS: <READY_FOR_TEST / etc>
+```
+
+---
+
+### УДАЛЯТЬ
+
+| Тип | Почему |
+|-----|--------|
+| ❌ Старые обсуждения | already в session history |
+| ❌ Предыдущие OWNER_SUMMARY | already зафиксированы |
+| ❌ Лишние пояснения | VERBOSITY_CONTROL запрещает |
+
+---
+
+### ПРИОРИТЕТ
+
+```
+1. Актуальность
+2. Полнота (если не противоречит 1)
+3. Последний шаг важнее истории
+```
+
+---
+
+### FALLBACK (если контекст > лимита)
+
+**Оставить только:**
+```
+- task (обязательно)
+- last_result (обязательно)
+- critical markers (READY_FOR_TEST и т.д.)
+```
+
+**Удалить:**
+- Всё остальное
+
+---
+
+### EXAMPLE
+
+**Правильно (≤3 блока):**
+```
+[1] TASK: AG-009 — feedback button implementation
+[2] LAST_RESULT: DEV completed, READY_FOR_TEST: yes
+[3] MARKERS: TEST required
+```
+
+**Неправильно (>3 блока):**
+```
+[1] Original user request from 5 steps ago
+[2] PM initial analysis
+[3] ANALYST recommendations
+[4] DEV plan
+[5] DEV implementation
+[6] Previous OWNER_SUMMARY
+...
+```
+
+---
+
+### INTEGRATION
+
+**Где применять:**
+- Все pipeline handoff (PM→DEV, DEV→TEST, etc.)
+- Все subagent spawn
+- Все context injection
+
+**Кто соблюдает:**
+- PM, ANALYST, DEV, ARCH, TEST — все роли
+
+---
+
+## 11. POLICY_ENFORCEMENT
+
+**Проблема:** Policy может дрейфовать — роли иногда нарушают правила.
+
+**Решение:** TEST роль дополнительно проверяет compliance.
+
+---
+
+### TEST POLICY CHECK
+
+**TEST обязан проверить:**
+
+| Check | Что проверять |
+|-------|---------------|
+| **VERBOSITY_CONTROL** | Соблюдены ли лимиты строк |
+| **FORMAT_POLICY** | Нет ли markdown tables / псевдографики |
+| **CONTEXT_POLICY** | Соблюдён ли MAX_CONTEXT_BLOCKS=3 |
+| **HANDOFF_RULES** | Есть ли READY_FOR_TEST (если был DEV) |
+
+---
+
+### VIOLATION HANDLING
+
+**Если нарушение обнаружено:**
+
+```
+TEST_DECISION: FAIL
+Reason: policy_violation
+Violation type: <тип нарушения>
+```
+
+**Примеры:**
+- `violation_type: verbosity_exceeded`
+- `violation_type: markdown_table_found`
+- `violation_type: context_blocks_exceeded`
+- `violation_type: missing_READY_FOR_TEST`
+
+---
+
+### OWNER_SUMMARY REQUIREMENT
+
+**Каждый OWNER_SUMMARY должен включать:**
+
+```markdown
+### POLICY_STATUS
+- status: ok / violation
+- violation_type: <тип если есть>
+```
+
+**Пример (ok):**
+```markdown
+### POLICY_STATUS
+- status: ok
+```
+
+**Пример (violation):**
+```markdown
+### POLICY_STATUS
+- status: violation
+- violation_type: verbosity_exceeded
+```
+
+---
+
+### RULES
+
+1. **НЕ вызывать дополнительные модели** — только проверка output
+2. **НЕ усложнять pipeline** — проверка в рамках TEST
+3. **FAIL при любом нарушении** — policy > completion
+
+---
+
+### PRIORITY
+
+```
+1. Policy compliance
+2. Task completion
+```
+
+---
+
+### INTEGRATION
+
+**Где проверять:**
+- В конце TEST stage
+- Перед OWNER_SUMMARY
+
+**Кто проверяет:**
+- TEST subagent
+
+**Что делать при violation:**
+1. Вернуть FAIL
+2. Указать violation_type
+3. Не продолжать pipeline до fix
+
+---
+
+## 12. LANGUAGE_POLICY
+
+**Проблема:** Описание задач и сообщения начинают переходить на английский → ухудшается читаемость.
+
+**Решение:** Строгое разделение языков для разных контекстов.
+
+---
+
+### ОБЯЗАТЕЛЬНЫЙ РУССКИЙ
+
+**Где использовать:**
+- Названия задач (AG-XXX Title)
+- Описания задач
+- PM сообщения
+- OWNER_SUMMARY
+- NEXT TASK SUGGESTION
+- DEVLOG записи
+- UX тексты (кнопки, подсказки)
+- Пользовательские уведомления
+
+---
+
+### РАЗРЕШЁН АНГЛИЙСКИЙ
+
+**Где использовать:**
+- Код и переменные
+- API endpoints
+- Технические термины (no translation needed)
+- Commit messages (допускается)
+- Model names (qwen3.5-plus, etc.)
+
+---
+
+### ЗАПРЕЩЕНО
+
+| Паттерн | Почему |
+|---------|--------|
+| ❌ Генерировать задачи на английском | Ухудшает читаемость |
+| ❌ User-facing сообщения на английском | Пользователь не поймёт |
+| ❌ Смешивать языки в одном предложении | Confusing |
+
+---
+
+### AUTO-CORRECTION
+
+**Если обнаружен английский:**
+→ Автоматически перевести на русский
+
+**Пример:**
+```
+Было: "Fix DEV → TEST auto-handoff"
+Стало: "Исправить авто-передачу DEV → TEST"
+```
+
+---
+
+### EXAMPLES
+
+**Правильно:**
+```
+AG-016: Исправить авто-передачу DEV → TEST
+OWNER_SUMMARY: Задача завершена, тесты PASS
+NEXT TASK: Следующая задача: AG-008
+```
+
+**Неправильно:**
+```
+AG-016: Fix DEV → TEST auto-handoff
+OWNER_SUMMARY: Task completed, tests PASS
+NEXT TASK: Next task: AG-008
+```
+
+---
+
+### INTEGRATION
+
+**Где применять:**
+- Все user-facing сообщения
+- Все policy документы
+- Все DEVLOG записи
+
+**Кто соблюдает:**
+- PM, ANALYST, DEV, ARCH, TEST — все роли
+
+---
+
+## 13. PIPELINE_WATCHDOG
+
+**Проблема:** Pipeline может зависнуть в TUI, а в Telegram это не видно пользователю.
+
+**Решение:** PM отслеживает выполнение pipeline и восстанавливает при зависании.
+
+---
+
+### PM ОБЯЗАННОСТИ
+
+**PM отвечает за:**
+1. Отслеживание, не завис ли pipeline между стадиями
+2. Проверку, был ли реально запущен следующий subagent
+3. Восстановление при зависании
+4. Уведомление владельца при критических проблемах
+
+---
+
+### STALL DETECTION RULE
+
+**Если после завершения стадии в течение 10 секунд не стартовал следующий ожидаемый stage:**
+→ Считать это **STALL**
+
+**Ожидаемые переходы:**
+```
+PM → DEV (≤10 сек)
+DEV → TEST (≤10 сек, по READY_FOR_TEST маркеру)
+TEST → OWNER_SUMMARY (≤10 сек)
+OWNER_SUMMARY → NEXT TASK (≤10 сек)
+```
+
+---
+
+### PM RECOVERY PROCEDURE
+
+**При обнаружении STALL:**
+
+1. **Определить stage, где pipeline встал:**
+   - Проверить последний завершённый stage
+   - Проверить, запущен ли следующий subagent
+
+2. **Попытаться продолжить автоматически:**
+   - Запустить ожидаемый subagent вручную
+   - Проверить, продолжился ли pipeline
+
+3. **Если recovery не удался:**
+   - Сообщить владельцу в Telegram
+   - Описать проблему и предпринятые действия
+
+---
+
+### OWNER ALERT FORMAT
+
+**Формат сообщения при проблеме:**
+
+```
+⚠️ Обнаружена проблема в процессе
+
+Стадия: <PM/DEV/TEST/ARCH>
+Проблема: <описание stall>
+Действие PM: <что сделано для recovery>
+Статус: recovered / not recovered
+```
+
+**Пример (recovered):**
+```
+⚠️ Обнаружена проблема в процессе
+
+Стадия: DEV → TEST
+Проблема: TEST не запущен в течение 10 сек после READY_FOR_TEST
+Действие PM: Принудительный запуск TEST subagent
+Статус: recovered
+```
+
+**Пример (not recovered):**
+```
+⚠️ Обнаружена проблема в процессе
+
+Стадия: PM → DEV
+Проблема: DEV subagent не запускается (ошибка spawn)
+Действие PM: 3 попытки запуска, все failed
+Статус: not recovered
+Требуется: Вмешательство владельца
+```
+
+---
+
+### LOGGING REQUIREMENT
+
+**PM должен записать в OWNER_SUMMARY:**
+
+```markdown
+### PIPELINE_STATUS
+- stalls_detected: N
+- recovery_attempts: N
+- recovery_success: yes/no
+- systemic_issue: <описание если есть>
+```
+
+---
+
+### INTEGRATION
+
+**Где применять:**
+- Все pipeline runs
+- Все subagent spawns
+
+**Кто соблюдает:**
+- PM — основная ответственность
+- TEST — валидация в POLICY_CHECK
+
+---
+
+_Версия: 1.16 | Создано: 2026-03-27 | Updated: PIPELINE_WATCHDOG_

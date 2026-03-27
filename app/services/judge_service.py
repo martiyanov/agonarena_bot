@@ -28,6 +28,8 @@ class JudgeVerdict(BaseModel):
     judge_type: Literal["owner", "team", "sending_to_negotiation"]
     winner: Literal["user", "ai", "draw"]
     comment: str
+    round1_comment: str = ""
+    round2_comment: str = ""
 
 
 class JudgeService:
@@ -74,6 +76,8 @@ class JudgeService:
             judge_type=verdict.judge_type,
             winner=verdict.winner,
             comment=verdict.comment,
+            round1_comment=verdict.round1_comment,
+            round2_comment=verdict.round2_comment,
         )
 
     def build_transcript(self, messages: Sequence[DuelMessage]) -> str:
@@ -129,7 +133,10 @@ class JudgeService:
             f"Scenario code: {context.scenario_code}\n"
             f"Round 1 transcript:\n{context.round1_transcript}\n\n"
             f"Round 2 transcript:\n{context.round2_transcript}\n\n"
-            "Return JSON with fields winner and comment. Comment must be in Russian."
+            "Return JSON with fields: winner, comment, round1_comment, round2_comment. All comments must be in Russian.\n"
+            "round1_comment: Comment specifically about Round 1 performance and outcome.\n"
+            "round2_comment: Comment specifically about Round 2 performance and outcome.\n"
+            "comment: Overall summary comment covering both rounds."
         )
 
     def _fallback_verdict(self, context: JudgeContext) -> JudgeVerdict:
@@ -138,9 +145,21 @@ class JudgeService:
 
         if context.judge_type == JudgeType.OWNER:
             comment = "Смотрю на устойчивость решения и экономику: позиция выглядела собранной, но без явного доминирования."
+            round1_comment = "Раунд 1: Обе стороны проявили себя сдержанно, без явного преимущества."
+            round2_comment = "Раунд 2: Смена ролей позволила лучше раскрыть позиции, но без кардинальных изменений."
         elif context.judge_type == JudgeType.TEAM:
             comment = "С точки зрения команды важны ясность и выполнимость; результат выглядит рабочим, но компромиссным."
+            round1_comment = "Раунд 1: Первоначальные позиции были ясны, но требуют проработки деталей реализации."
+            round2_comment = "Раунд 2: Диалог во второй половине показал готовность к конструктивному взаимодействию."
         else:
             comment = "С точки зрения переговорщика, диалог сохранил пространство для манёвра и не разрушил отношения сторон."
+            round1_comment = "Раунд 1: Стороны установили контакт, но остались в своих позициях."
+            round2_comment = "Раунд 2: Взаимодействие стало более продуктивным, появились элементы сотрудничества."
 
-        return JudgeVerdict(judge_type=context.judge_type, winner=winner, comment=comment)
+        return JudgeVerdict(
+            judge_type=context.judge_type, 
+            winner=winner, 
+            comment=comment,
+            round1_comment=round1_comment,
+            round2_comment=round2_comment
+        )

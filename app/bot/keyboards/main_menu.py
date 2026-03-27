@@ -6,6 +6,7 @@ RANDOM_SCENARIO_BUTTON = "🎲 Случайный сценарий"
 CUSTOM_SCENARIO_BUTTON = "🎭 Свой сценарий"
 END_ROUND_BUTTON = "🏁 Завершить раунд"
 RULES_BUTTON = "ℹ️ Справка"
+FEEDBACK_BUTTON = "💬 Обратная связь"
 
 
 def build_main_menu() -> ReplyKeyboardMarkup:
@@ -21,6 +22,7 @@ def build_main_menu() -> ReplyKeyboardMarkup:
             ],
             [
                 KeyboardButton(text=RULES_BUTTON),
+                KeyboardButton(text=FEEDBACK_BUTTON),
             ],
         ],
         resize_keyboard=True,

@@ -44,6 +44,7 @@ NEXT_ROUND_BUTTON = "⏭️ Раунд 2"
 NEXT_ROUND_BUTTON_LEGACY = "⏭️ Следующий раунд"
 FINISH_BUTTON = "🏁 Завершить"
 FINISH_BUTTON_LEGACY = "🏁 Завершить поединок"
+FEEDBACK_BUTTON = "💬 Обратная связь"
 
 MENU_TEXTS = {
     START_BUTTON,
@@ -64,11 +65,14 @@ MENU_TEXTS = {
     NEXT_ROUND_BUTTON_LEGACY,
     FINISH_BUTTON,
     FINISH_BUTTON_LEGACY,
+    FEEDBACK_BUTTON,
 }
 
 # Пользовательские сценарии: после нажатия кнопки ждём одно следующее сообщение
 PENDING_CUSTOM_SCENARIO_USERS: set[int] = set()
 ACTION_IN_PROGRESS_USERS: set[int] = set()
+# Отслеживание пользователей, которые нажали кнопку обратной связи
+FEEDBACK_REQUEST_USERS: set[int] = set()
 
 
 def _timer_hint(seconds: int) -> str:
@@ -93,6 +97,12 @@ def _format_final_verdict(judge_service: JudgeService, verdicts: list, final_ver
         for v in verdicts:
             label = labels.get(v.judge_type, v.judge_type)
             lines.append(f"• <b>{escape(label.title())}</b>: {escape(v.comment)}")
+            
+            # Add round-specific comments if available
+            if hasattr(v, 'round1_comment') and v.round1_comment:
+                lines.append(f"  Раунд 1: {escape(v.round1_comment)}")
+            if hasattr(v, 'round2_comment') and v.round2_comment:
+                lines.append(f"  Раунд 2: {escape(v.round2_comment)}")
 
     return "\n".join(lines)
 
@@ -105,21 +115,43 @@ async def _send_scenario_picker(message: Message) -> None:
         await message.answer("Сценариев пока нет. Добавьте их в базу и попробуйте снова.")
         return
 
-    await message.answer("<b>Выберите готовый сценарий для поединка</b>", parse_mode="HTML")
-
-    for item in scenarios[:10]:
-        parts = [
-            f"<b>{escape(item.title)}</b>",
-            escape(item.description),
-        ]
+    # Подготовим список сценариев для отображения
+    scenario_lines = []
+    for i, item in enumerate(scenarios[:10], 1):
         roles_line = f"{escape(item.role_a_name)} ↔ {escape(item.role_b_name)}"
-        if len(roles_line) <= 80:
-            parts.append(f"Роли: {roles_line}")
+        difficulty = f" | {item.difficulty}" if item.difficulty else ""
+        scenario_lines.append(f"{i}. {escape(item.title)}\n{roles_line}{difficulty}")
 
-        markup = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="Начать сценарий", callback_data=f"start_scenario:{item.code}")]]
-        )
-        await message.answer("\n".join(parts), parse_mode="HTML", reply_markup=markup)
+    # Формируем сообщение со списком сценариев
+    scenarios_text = "\n\n".join(scenario_lines)
+    
+    # Создаем компактную клавиатуру: 2 ряда по 5 кнопок (цифры 1-10) + "🎲 Случайный"
+    keyboard_rows = []
+    # Первые 5 кнопок (1-5)
+    row1 = []
+    for i in range(1, min(len(scenarios)+1, 6)):
+        row1.append(InlineKeyboardButton(text=str(i), callback_data=f"pick_scenario:{i}"))
+    if row1:
+        keyboard_rows.append(row1)
+    
+    # Вторые 5 кнопок (6-10)
+    row2 = []
+    for i in range(6, min(len(scenarios)+1, 11)):
+        row2.append(InlineKeyboardButton(text=str(i), callback_data=f"pick_scenario:{i}"))
+    if row2:
+        keyboard_rows.append(row2)
+    
+    # Добавляем кнопку "🎲 Случайный"
+    random_button_row = [InlineKeyboardButton(text="🎲 Случайный", callback_data="pick_scenario:random")]
+    keyboard_rows.append(random_button_row)
+    
+    markup = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
+    
+    await message.answer(
+        f"<b>Выберите готовый сценарий для поединка</b>\n\n{scenarios_text}", 
+        parse_mode="HTML", 
+        reply_markup=markup
+    )
 
 
 @router.message(F.text == SCENARIOS_BUTTON)
@@ -392,6 +424,44 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
     await message.answer(f"{ai_reply}\n\n{timer_line}")
 
 
+async def _send_feedback_to_owner(message: Message, feedback_text: str) -> None:
+    """Send feedback message to the bot owner"""
+    # Get the owner user ID from environment variable
+    import os
+    owner_user_id = os.getenv("FEEDBACK_OWNER_USER_ID")
+    
+    if not owner_user_id:
+        # If no owner ID is configured, send a message to the user
+        await message.answer(
+            "⚠️ К сожалению, я не могу отправить вашу обратную связь, "
+            "так как не настроен ID владельца бота."
+        )
+        return
+    
+    try:
+        owner_user_id = int(owner_user_id)
+        
+        # Format the feedback message with user info
+        user_info = f"Пользователь: {message.from_user.full_name} (@{message.from_user.username or 'не указан'})\nID: {message.from_user.id}\n\n"
+        feedback_content = f"💬 Обратная связь:\n\n{feedback_text}"
+        full_message = user_info + feedback_content
+        
+        # Send the feedback to the owner
+        await message.bot.send_message(chat_id=owner_user_id, text=full_message)
+        
+        # Confirm to the user that feedback was sent
+        await message.answer("✅ Ваша обратная связь успешно отправлена владельцу бота!")
+        
+    except ValueError:
+        await message.answer(
+            "⚠️ Ошибка: некорректный ID владельца бота в настройках."
+        )
+    except Exception as e:
+        await message.answer(
+            f"❌ Не удалось отправить обратную связь: {str(e)}"
+        )
+
+
 async def _download_telegram_file(message: Message) -> Path:
     file_id = None
     suffix = ".bin"
@@ -424,6 +494,36 @@ async def start_duel_from_scenario_button(callback: CallbackQuery) -> None:
     scenario_code = callback.data.split(":", 1)[1]
     await callback.answer()
     await _start_duel(callback.message, scenario_code=scenario_code)
+
+
+@router.callback_query(F.data.startswith("pick_scenario:"))
+async def start_duel_from_pick_scenario(callback: CallbackQuery) -> None:
+    scenario_selector = callback.data.split(":", 1)[1]
+    await callback.answer()
+    
+    # Если выбран случайный сценарий
+    if scenario_selector == "random":
+        await _start_duel(callback.message)
+        return
+    
+    # Если выбран номер сценария
+    try:
+        scenario_number = int(scenario_selector)
+        if 1 <= scenario_number <= 10:
+            # Получаем список активных сценариев
+            async with db_session.AsyncSessionLocal() as session:
+                scenarios = await ScenarioService().list_active(session)
+                
+                # Проверяем, что номер сценария в пределах доступного количества
+                if scenario_number <= len(scenarios):
+                    selected_scenario = scenarios[scenario_number - 1]
+                    await _start_duel(callback.message, scenario_code=selected_scenario.code)
+                else:
+                    await callback.message.answer("Выбранный сценарий больше не доступен.")
+        else:
+            await callback.message.answer("Неверный номер сценария.")
+    except ValueError:
+        await callback.message.answer("Ошибка при выборе сценария.")
 
 
 @router.message(F.text == RANDOM_SCENARIO_BUTTON)
@@ -574,10 +674,26 @@ async def my_results(message: Message) -> None:
         for item in judge_results:
             label = judge_labels.get(item.judge_type, item.judge_type)
             lines.append(f"• <b>{escape(label.title())}:</b> {escape(item.comment)}")
+            
+            # Add round-specific comments if available
+            if item.round1_comment:
+                lines.append(f"  Раунд 1: {escape(item.round1_comment)}")
+            if item.round2_comment:
+                lines.append(f"  Раунд 2: {escape(item.round2_comment)}")
     if duel.final_verdict:
         lines.append(f"\n<b>Краткий итог</b>\n{escape(duel.final_verdict.splitlines()[0])}")
 
     await message.answer("\n".join(lines), parse_mode="HTML")
+
+
+@router.message(F.text == FEEDBACK_BUTTON)
+async def start_feedback_flow(message: Message) -> None:
+    """Handle the feedback button click - put user in feedback mode"""
+    FEEDBACK_REQUEST_USERS.add(message.from_user.id)
+    await message.answer(
+        "💬 Напишите ваше сообщение для обратной связи. "
+        "Я перешлю его владельцу бота, и он обязательно прочитает."
+    )
 
 
 @router.message(F.text.in_({RULES_BUTTON, RULES_BUTTON_LEGACY, SCENARIOS_BUTTON}))
@@ -613,7 +729,7 @@ async def how_it_works(message: Message) -> None:
         "<b>Сценарии</b>\n"
         f"{scenarios_block}\n\n"
         "<b>Обратная связь</b>\n"
-        "Если хотите оставить отзыв или предложить улучшение, начните сообщение с фразы <code>Обратная связь</code>.\n\n"
+        "Если хотите оставить отзыв или предложить улучшение, нажмите кнопку <b>«💬 Обратная связь»</b> в главном меню.\n\n"
         "<b>Поддержать проект</b>\n"
         "<a href=\"https://t.me/tribute/app?startapp=dHaW\">Отблагодарить автора</a>",
         parse_mode="HTML",
@@ -704,6 +820,13 @@ async def process_audio_turn(message: Message) -> None:
 
 @router.message(F.text & ~F.text.in_(MENU_TEXTS))
 async def process_turn(message: Message) -> None:
+    # Если пользователь находится в режиме отправки обратной связи
+    if message.from_user and message.from_user.id in FEEDBACK_REQUEST_USERS:
+        # Отправляем обратную связь владельцу и убираем пользователя из режима обратной связи
+        FEEDBACK_REQUEST_USERS.discard(message.from_user.id)
+        await _send_feedback_to_owner(message, message.text)
+        return
+
     # Если ждём описание пользовательского сценария — используем текст как исходник
     if message.from_user and message.from_user.id in PENDING_CUSTOM_SCENARIO_USERS:
         await _start_custom_duel(message, message.text)

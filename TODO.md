@@ -123,7 +123,7 @@
 ### AG-016
 - **Title:** Fix DEV → TEST auto-handoff in pipeline orchestration
 - **Type:** orchestration bug
-- **Status:** TODO
+- **Status:** DONE
 - **Priority:** P0
 - **Why:** Pipeline не переходит автоматически DEV → TEST, требует manual trigger
 - **Done_when:**
@@ -137,6 +137,11 @@
   - **Confidence:** 8
   - **Effort:** 4
   - **Score:** 180
+- **Implemented:** 
+  - Created auto-test spawner script
+  - Implemented marker detection (READY_FOR_TEST: yes)
+  - Added 5-second fallback timer
+  - Documented in PIPELINE_ORCHESTRATION.md
 
 ### AG-008
 - **Title:** Normalize judge output by round
