@@ -120,6 +120,24 @@
   - **Effort:** 2
   - **Score:** 288
 
+### AG-016
+- **Title:** Fix DEV → TEST auto-handoff in pipeline orchestration
+- **Type:** orchestration bug
+- **Status:** TODO
+- **Priority:** P0
+- **Why:** Pipeline не переходит автоматически DEV → TEST, требует manual trigger
+- **Done_when:**
+  - TEST subagent спавнится автоматически после DEV completion
+  - Pipeline не зависает на handoff
+  - Не требуется ручное вмешательство
+- **Risks:** изменение orchestration logic может задеть другие stage transitions
+- **RICE:**
+  - **Reach:** 10 (затрагивает все задачи)
+  - **Impact:** 9 (критично для workflow)
+  - **Confidence:** 8
+  - **Effort:** 4
+  - **Score:** 180
+
 ### AG-008
 - **Title:** Normalize judge output by round
 - **Type:** product
@@ -164,6 +182,25 @@
   - **Confidence:** 8
   - **Effort:** 3
   - **Score:** 128
+
+### AG-015
+- **Title:** Analyze token efficiency across development pipeline
+- **Type:** analysis
+- **Status:** TODO
+- **Priority:** P1
+- **Why:** нужно оценить, где теряются токены в pipeline (PM/ANALYST/DEV/ARCH/TEST + delivery)
+- **Done_when:**
+  - проанализирован расход токенов на каждом этапе pipeline
+  - выявлены потери: лишние вопросы, дублирование, verbose formatting
+  - рекомендованы оптимизации (без реализации пока)
+- **Risks:** analysis может затянуться без чётких метрик
+- **RICE:**
+  - **Reach:** 9
+  - **Impact:** 7
+  - **Confidence:** 6
+  - **Effort:** 4
+  - **Score:** 94.5
+- **Note:** Сначала analysis phase. Потом решение: отдельная роль или использование ANALYST.
 
 ## BACKLOG
 
