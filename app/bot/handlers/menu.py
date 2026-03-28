@@ -507,7 +507,7 @@ async def _download_telegram_file(message: Message) -> Path:
 async def start_duel_from_menu(callback: CallbackQuery = None, message: Message = None) -> None:
     # Handle both callback query and direct message
     if callback:
-        await callback.answer()
+        await callback.answer(text="OK")
         target_message = callback.message
     else:
         target_message = message
@@ -518,14 +518,14 @@ async def start_duel_from_menu(callback: CallbackQuery = None, message: Message 
 @router.callback_query(F.data.startswith("start_scenario:"))
 async def start_duel_from_scenario_button(callback: CallbackQuery) -> None:
     scenario_code = callback.data.split(":", 1)[1]
-    await callback.answer()
+    await callback.answer(text="OK")
     await _start_duel(callback.message, scenario_code=scenario_code)
 
 
 @router.callback_query(F.data.startswith("pick_scenario:"))
 async def start_duel_from_pick_scenario(callback: CallbackQuery) -> None:
     scenario_selector = callback.data.split(":", 1)[1]
-    await callback.answer()
+    await callback.answer(text="OK")
     
     # Если выбран случайный сценарий
     if scenario_selector == "random":
@@ -582,7 +582,7 @@ async def make_turn_prompt(message: Message) -> None:
 async def end_round_or_finish_duel(callback: CallbackQuery = None, message: Message = None) -> None:
     # Handle both callback query and direct message
     if callback:
-        await callback.answer()
+        await callback.answer(text="OK")
         target_message = callback.message
     else:
         target_message = message
@@ -685,7 +685,7 @@ async def _finish_duel_from_menu(message: Message) -> None:
 async def my_results(callback: CallbackQuery = None, message: Message = None) -> None:
     # Handle both callback query and direct message
     if callback:
-        await callback.answer()
+        await callback.answer(text="OK")
         target_message = callback.message
     else:
         target_message = message
@@ -733,7 +733,7 @@ async def my_results(callback: CallbackQuery = None, message: Message = None) ->
 async def start_feedback_flow(callback: CallbackQuery = None, message: Message = None) -> None:
     # Handle both callback query and direct message
     if callback:
-        await callback.answer()
+        await callback.answer(text="OK")
         target_message = callback.message
     else:
         target_message = message
@@ -759,7 +759,7 @@ async def cancel_feedback(update: Union[Message, CallbackQuery]) -> None:
     # Handle both message and callback query
     if isinstance(update, CallbackQuery):
         user_id = update.from_user.id
-        await update.answer()
+        await update.answer(text="OK")
         message = update.message
     else:
         user_id = update.from_user.id
@@ -841,7 +841,7 @@ async def handle_start_command(message: Message) -> None:
 async def how_it_works(callback: CallbackQuery = None, message: Message = None) -> None:
     # Handle both callback query and direct message
     if callback:
-        await callback.answer()
+        await callback.answer(text="OK")
         target_message = callback.message
     else:
         target_message = message
