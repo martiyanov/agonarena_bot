@@ -57,7 +57,11 @@ class RoundTimerService:
                     duel = await duel_service.get_duel(session, duel_id)
                     round_obj = await duel_service.get_round(session, duel_id, round_number)
 
+                    # Check immediately after sleep - duel may have been finished by user
                     if duel is None or round_obj is None:
+                        return
+                    if duel.status == "finished":
+                        logger.info("round timer: duel already finished, skipping for duel=%s", duel_id)
                         return
                     if round_obj.status != "in_progress":
                         logger.info(
@@ -84,7 +88,7 @@ class RoundTimerService:
                     await session.commit()
                     break
 
-            # Don't send timeout message if duel is already finished (e.g., user clicked "End Round" manually)
+            # Final check before sending message - user may have clicked "End Round" during the check above
             async with db_session.AsyncSessionLocal() as session:
                 duel_service = DuelService()
                 duel = await duel_service.get_duel(session, duel_id)
