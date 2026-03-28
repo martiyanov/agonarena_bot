@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_webhook_secret: str = ""
     telegram_bot_username: str = ""
+    feedback_owner_user_id: int | None = None
 
     database_url: str = "sqlite+aiosqlite:///./data/agonarena.db"
     openai_api_key: str = ""

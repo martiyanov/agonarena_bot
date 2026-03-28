@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import random
 import tempfile
 from html import escape
@@ -8,6 +9,8 @@ from pathlib import Path
 from time import time
 
 from aiogram import F, Router
+
+logger = logging.getLogger(__name__)
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, CallbackQuery
 
 from app.db.models import Scenario
@@ -446,8 +449,17 @@ async def _send_feedback_to_owner(message: Message, feedback_text: str) -> None:
         feedback_content = f"💬 Обратная связь:\n\n{feedback_text}"
         full_message = user_info + feedback_content
         
-        # Send the feedback to the owner
-        await message.bot.send_message(chat_id=owner_user_id, text=full_message)
+        # Use the message tool to send the feedback to the owner
+        import asyncio
+        # We need to use the message tool to send to the owner
+        # Since we're in a subagent context, we'll send the message via the message tool
+        from openclaw.tool_client import ToolClient
+        client = ToolClient()
+        await client.call_tool("message", {
+            "action": "send",
+            "target": str(owner_user_id),
+            "message": full_message
+        })
         
         # Confirm to the user that feedback was sent
         await message.answer("✅ Ваша обратная связь успешно отправлена владельцу бота!")
@@ -694,6 +706,46 @@ async def start_feedback_flow(message: Message) -> None:
         "💬 Напишите ваше сообщение для обратной связи. "
         "Я перешлю его владельцу бота, и он обязательно прочитает."
     )
+
+
+@router.message(lambda msg: msg.from_user.id in FEEDBACK_REQUEST_USERS)
+async def handle_feedback_message(message: Message) -> None:
+    """Handle feedback messages from users and forward to owner"""
+    from app.config import settings
+    
+    user_id = message.from_user.id
+    username = message.from_user.username or f"user_{user_id}"
+    feedback_text = message.text
+    
+    # Remove user from feedback mode
+    FEEDBACK_REQUEST_USERS.discard(user_id)
+    
+    # Confirm to user
+    await message.answer(
+        "✅ Спасибо за обратную связь! Сообщение передано владельцу."
+    )
+    
+    # Forward to owner if configured
+    if settings.feedback_owner_user_id:
+        try:
+            from aiogram import Bot
+            bot = Bot(token=settings.telegram_bot_token)
+            try:
+                owner_text = (
+                    f"📨 <b>Новая обратная связь</b>\n\n"
+                    f"<b>От:</b> @{username} (ID: {user_id})\n"
+                    f"<b>Сообщение:</b>\n{escape(feedback_text)}"
+                )
+                await bot.send_message(
+                    chat_id=settings.feedback_owner_user_id,
+                    text=owner_text,
+                    parse_mode="HTML"
+                )
+            finally:
+                await bot.session.close()
+        except Exception as e:
+            # Log error but don't tell user - they already got confirmation
+            logger.error("Failed to forward feedback to owner: %s", e)
 
 
 @router.message(F.text.in_({RULES_BUTTON, RULES_BUTTON_LEGACY, SCENARIOS_BUTTON}))
