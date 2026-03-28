@@ -1391,14 +1391,28 @@ docker-compose build && docker-compose up -d
 ##### DEPLOY COMMANDS (reference)
 
 **Обновление Docker-контейнера:**
-```bash
-# Pull + rebuild + restart
-docker-compose pull
-docker-compose build
-docker-compose up -d --force-recreate
 
-# Или одной командой
-docker-compose pull && docker-compose build && docker-compose up -d --force-recreate
+| Команда | Когда | Почему |
+|---------|-------|--------|
+| `docker-compose up -d --build` | Стандартный деплой | Пересобирает image с новыми файлами |
+| `docker-compose down && docker-compose up -d --build` | Если есть проблемы с volumes | Полная пересборка с очисткой |
+| `docker-compose pull && docker-compose build && docker-compose up -d --force-recreate` | Гарантированный rebuild | Pull base + build + force recreate |
+
+**⚠️ ВАЖНО:**
+- ❌ `docker-compose restart` — **НЕ пересобирает image**, только перезапускает контейнер со старыми файлами
+- ✅ `docker-compose up -d --build` — **пересобирает image** с новыми файлами из workspace
+
+**Правильный flow:**
+```bash
+# 1. Убедиться что код закоммичен
+git status --short
+
+# 2. Пересобрать и перезапустить
+docker-compose up -d --build
+
+# 3. Проверить
+docker-compose ps
+docker-compose logs --tail=10 app
 ```
 
 **Проверка:**
@@ -2644,4 +2658,4 @@ Canonical bootstrap:
 
 ---
 
-_Версия: 1.22 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE (Docker definition), MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE, ORCHESTRATION_FLOW, SUBAGENT_RESULT_RETURN_
+_Версия: 1.23 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE (Docker definition + build commands), MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE, ORCHESTRATION_FLOW, SUBAGENT_RESULT_RETURN_
