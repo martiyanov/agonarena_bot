@@ -21,45 +21,34 @@
 | **TEST** | `modelstudio/qwen3-coder-plus` | Всегда (валидация) |
 | **ARCH** | `modelstudio/qwen3-max-2026-01-23` | On-demand (архитектура, state, refactor) |
 
-### 1.3 LLM Fallback Policy
+### 1.3 LLM Fallback Policy (Overview)
 
 **Priority:**
-1. **ModelStudio (Chinese models)** — PRIMARY
-   - `qwen3.5-plus` — PM, ANALYST
-   - `qwen3-coder-plus` — DEV, TEST
-   - `qwen3-max-2026-01-23` — ARCH
+1. **Kimi (Moonshot)** — PRIMARY
+   - `kimi-k2.5` — PM, DEV
+   - `kimi-k2-thinking` — TEST, ANALYST, ARCH
 
-2. **Kimi (Moonshot)** — FALLBACK 1
-   - `kimi-k2.5` — fallback модель 1
-   - Использовать если ModelStudio возвращает ошибку
+2. **Qwen Coder (ModelStudio)** — FALLBACK 1
+   - `qwen3-coder-next` — DEV, TEST fallback
+   - `qwen3-coder-plus` — альтернатива
 
-3. **OpenAI** — FALLBACK 2 (last resort)
-   - `gpt-4o-mini` — fallback модель 2
-   - Использовать ТОЛЬКО если ModelStudio + Kimi недоступны
+3. **GLM (Zhipu)** — FALLBACK 2
+   - `glm-4.7` — универсальная стабильная
+
+4. **Qwen (ModelStudio)** — FALLBACK 3
+   - `qwen3.5-plus` — общие задачи
+   - `qwen3-max-2026-01-23` — архитектура
+
+5. **OpenAI** — FALLBACK 4 (last resort)
+   - `gpt-4o-mini` — ТОЛЬКО если все китайские недоступны
 
 **Правила:**
-- ❌ Не использовать OpenAI/Kimi по умолчанию
-- ✅ Автоматический fallback: ModelStudio → Kimi → OpenAI
+- ✅ Китайские модели: лучше качество, дешевле, стабильнее
+- ✅ Автоматический fallback: Kimi → Qwen Coder → GLM → Qwen → OpenAI
 - ⚠️ Если все providers недоступны → ошибка с явным сообщением
-- 📝 Логировать все fallback переключения
+- 📝 Логировать все fallback переключения в OWNER_SUMMARY
 
-**Config (.env):**
-```bash
-# Primary (обязательно)
-MODELSTUDIO_API_KEY=your_key_here
-MODELSTUDIO_BASE_URL=https://api.modelscope.cn/v1
-LLM_MODEL=qwen3.5-plus
-
-# Fallback 1 (рекомендуется)
-KIMI_API_KEY=your_kimi_key_here
-KIMI_BASE_URL=https://api.moonshot.cn/v1
-KIMI_FALLBACK_MODEL=kimi-k2.5
-
-# Fallback 2 (last resort)
-OPENAI_API_KEY=your_key_here
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_FALLBACK_MODEL=gpt-4o-mini
-```
+**Детальная fallback цепочка:** Section 1.4
 
 ---
 
@@ -2693,4 +2682,133 @@ Canonical bootstrap:
 
 ---
 
-_Версия: 1.25 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE (Docker definition + build commands), MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE, ORCHESTRATION_FLOW, SUBAGENT_RESULT_RETURN, LLM_FALLBACK_POLICY (ModelStudio → Kimi → OpenAI)_
+_Версия: 1.26 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE (Docker definition + build commands), MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE, ORCHESTRATION_FLOW, SUBAGENT_RESULT_RETURN, LLM_FALLBACK_CHAIN (kimi-k2.5/kimi-k2-thinking primary → qwen3-coder → glm-4.7 → gpt-4o-mini last resort)_
+
+---
+
+## 1.4 LLM_FALLBACK_CHAIN (DETAILED)
+
+**Проблема:** HTTP 429 (rate limit) и временные ошибки providers могут блокировать pipeline.
+
+**Решение:** Явные fallback цепочки для каждой роли: китайские модели → GPT (last resort only).
+
+---
+
+### FALLBACK_CHAIN_BY_ROLE
+
+| Роль | Primary | Fallback 1 | Fallback 2 | Fallback 3 (Last Resort) |
+|------|---------|------------|------------|-------------------------|
+| **PM** | `kimi-k2.5` | `glm-4.7` | `qwen3.5-plus` | `gpt-4o-mini` |
+| **DEV** | `kimi-k2.5` | `qwen3-coder-next` | `glm-4.7` | `gpt-4o-mini` |
+| **TEST** | `kimi-k2-thinking` | `qwen3-coder-next` | `glm-4.7` | `gpt-4o-mini` |
+| **ANALYST** | `kimi-k2-thinking` | `qwen3.5-plus` | `glm-4.7` | `gpt-4o-mini` |
+| **ARCH** | `kimi-k2-thinking` | `qwen3-max-2026-01-23` | `glm-4.7` | `gpt-4o-mini` |
+
+---
+
+### FALLBACK_TRIGGER_RULES
+
+**Автоматический fallback если:**
+
+| Ошибка | Действие |
+|--------|----------|
+| HTTP 429 (rate limit) | → Fallback 1 |
+| HTTP 503 (service unavailable) | → Fallback 1 |
+| Timeout (>60 сек) | → Fallback 1 |
+| Model error (invalid response) | → Fallback 1 |
+| Fallback 1 недоступен | → Fallback 2 |
+| Fallback 2 недоступен | → Fallback 3 (GPT) |
+
+---
+
+### FALLBACK_LOGGING
+
+**Каждый fallback должен быть залогирован:**
+
+```markdown
+### FALLBACK_STATUS
+- primary_model: <model>
+- fallback_triggered: yes/no
+- fallback_level: 0/1/2/3
+- reason: <429/timeout/error>
+```
+
+**Пример:**
+```markdown
+### FALLBACK_STATUS
+- primary_model: kimi-k2.5
+- fallback_triggered: yes
+- fallback_level: 1
+- reason: HTTP 429 rate limit
+```
+
+---
+
+### GPT_USAGE_RULE
+
+**GPT (gpt-4o-mini) — ТОЛЬКО last resort:**
+
+| Условие | Разрешено? |
+|---------|------------|
+| Primary (kimi) доступен | ❌ Нет |
+| Fallback 1 (qwen/glm) доступен | ❌ Нет |
+| Все китайские модели недоступны | ✅ Да |
+| Пользователь явно попросил GPT | ✅ Да |
+
+**Запрещено:**
+- ❌ Использовать GPT по умолчанию
+- ❌ Пропускать китайские fallback уровни
+- ❌ Не логировать GPT usage
+
+---
+
+### CONFIG (.env)
+
+```bash
+# Primary (Kimi — Moonshot)
+KIMI_API_KEY=your_kimi_key_here
+KIMI_BASE_URL=https://api.moonshot.cn/v1
+KIMI_PRIMARY_MODEL=kimi-k2.5
+KIMI_THINKING_MODEL=kimi-k2-thinking
+
+# Fallback 1 (GLM — Zhipu)
+GLM_API_KEY=your_glm_key_here
+GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+GLM_FALLBACK_MODEL=glm-4.7
+
+# Fallback 2 (Qwen — ModelStudio)
+MODELSTUDIO_API_KEY=your_modelstudio_key_here
+MODELSTUDIO_BASE_URL=https://api.modelscope.cn/v1
+MODELSTUDIO_FALLBACK_MODEL=qwen3.5-plus
+MODELSTUDIO_CODER_MODEL=qwen3-coder-next
+
+# Fallback 3 (OpenAI — Last Resort)
+OPENAI_API_KEY=your_openai_key_here
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_LAST_RESORT_MODEL=gpt-4o-mini
+```
+
+---
+
+### FALLBACK_PRIORITY_SUMMARY
+
+```
+Priority 1: Kimi (kimi-k2.5, kimi-k2-thinking) — лучшие для кода и анализа
+Priority 2: Qwen Coder (qwen3-coder-next, qwen3-coder-plus) — специализированные кодовые
+Priority 3: GLM (glm-4.7) — универсальная стабильная
+Priority 4: Qwen (qwen3.5-plus, qwen3-max) — общие задачи
+Priority 5: GPT (gpt-4o-mini) — ТОЛЬКО если все выше недоступны
+```
+
+---
+
+### MONITORING
+
+**PM обязан отслеживать:**
+- Частоту fallback срабатываний
+- Какой provider чаще всего fails
+- Предлагать ротацию primary если fallback >20% задач
+
+**Если fallback >50% задач:**
+→ Предложить сменить primary provider
+→ Логировать в state/DEVLOG.md
