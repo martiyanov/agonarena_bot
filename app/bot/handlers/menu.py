@@ -503,16 +503,13 @@ async def _download_telegram_file(message: Message) -> Path:
 
 
 @router.message(F.text == START_BUTTON)
+async def handle_start_button(message: Message) -> None:
+    await show_main_menu(message)
+
 @router.callback_query(F.data == "start_duel")
-async def start_duel_from_menu(callback: CallbackQuery = None, message: Message = None) -> None:
-    # Handle both callback query and direct message
-    if callback:
-        await callback.answer(text="OK")
-        target_message = callback.message
-    else:
-        target_message = message
-    
-    await _send_scenario_picker(target_message)
+async def start_duel_from_menu(callback: CallbackQuery) -> None:
+    await callback.answer(text="OK")
+    await _send_scenario_picker(callback.message)
 
 
 @router.callback_query(F.data.startswith("start_scenario:"))
@@ -578,15 +575,15 @@ async def make_turn_prompt(message: Message) -> None:
 
 
 @router.message(F.text.in_({END_ROUND_BUTTON, NEXT_ROUND_BUTTON, NEXT_ROUND_BUTTON_LEGACY, FINISH_BUTTON, FINISH_BUTTON_LEGACY}))
+async def handle_end_round_button(message: Message) -> None:
+    await _process_end_round(message)
+
 @router.callback_query(F.data == "end_round")
-async def end_round_or_finish_duel(callback: CallbackQuery = None, message: Message = None) -> None:
-    # Handle both callback query and direct message
-    if callback:
-        await callback.answer(text="OK")
-        target_message = callback.message
-    else:
-        target_message = message
-    
+async def end_round_or_finish_duel(callback: CallbackQuery) -> None:
+    await callback.answer(text="OK")
+    await _process_end_round(callback.message)
+
+async def _process_end_round(target_message: Message) -> None:
     user_id = target_message.from_user.id
     if user_id in ACTION_IN_PROGRESS_USERS:
         await target_message.answer("Действие уже выполняется. Подождите пару секунд.")
@@ -681,15 +678,15 @@ async def _finish_duel_from_menu(message: Message) -> None:
 
 
 @router.message(F.text.in_({RESULTS_BUTTON, RESULTS_BUTTON_LEGACY, RESULTS_BUTTON_LEGACY_2}))
+async def handle_results_button(message: Message) -> None:
+    await _show_results(message)
+
 @router.callback_query(F.data == "results")
-async def my_results(callback: CallbackQuery = None, message: Message = None) -> None:
-    # Handle both callback query and direct message
-    if callback:
-        await callback.answer(text="OK")
-        target_message = callback.message
-    else:
-        target_message = message
-    
+async def my_results(callback: CallbackQuery) -> None:
+    await callback.answer(text="OK")
+    await _show_results(callback.message)
+
+async def _show_results(target_message: Message) -> None:
     async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
         duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=target_message.from_user.id)
@@ -729,15 +726,15 @@ async def my_results(callback: CallbackQuery = None, message: Message = None) ->
 
 
 @router.message(F.text == FEEDBACK_BUTTON)
+async def handle_feedback_button(message: Message) -> None:
+    await _start_feedback(message)
+
 @router.callback_query(F.data == "feedback")
-async def start_feedback_flow(callback: CallbackQuery = None, message: Message = None) -> None:
-    # Handle both callback query and direct message
-    if callback:
-        await callback.answer(text="OK")
-        target_message = callback.message
-    else:
-        target_message = message
-    
+async def start_feedback_flow(callback: CallbackQuery) -> None:
+    await callback.answer(text="OK")
+    await _start_feedback(callback.message)
+
+async def _start_feedback(target_message: Message) -> None:
     FEEDBACK_REQUEST_USERS.add(target_message.from_user.id)
     
     # Show message with cancel button
@@ -832,20 +829,21 @@ async def show_main_menu(message: Message) -> None:
 
 
 @router.message(F.text == "/start")
+@router.message(F.text == "Меню")
 async def handle_start_command(message: Message) -> None:
     await show_main_menu(message)
 
 
 @router.message(F.text.in_({RULES_BUTTON, RULES_BUTTON_LEGACY, SCENARIOS_BUTTON}))
+async def handle_rules_button(message: Message) -> None:
+    await _show_rules(message)
+
 @router.callback_query(F.data == "rules")
-async def how_it_works(callback: CallbackQuery = None, message: Message = None) -> None:
-    # Handle both callback query and direct message
-    if callback:
-        await callback.answer(text="OK")
-        target_message = callback.message
-    else:
-        target_message = message
-    
+async def how_it_works(callback: CallbackQuery) -> None:
+    await callback.answer(text="OK")
+    await _show_rules(callback.message)
+
+async def _show_rules(target_message: Message) -> None:
     await target_message.answer(
         "<b>ℹ️ Справка</b>\n\n"
         "<b>Как проходит поединок</b>\n"
