@@ -1320,26 +1320,97 @@ PUSH TO ORIGIN
 
 **После bugfix/task execution агент обязан явно указать один из статусов:**
 
+---
+
+##### DEPLOYMENT DEFINITION (agonarena_bot)
+
+**Для проекта agonarena_bot:**
+- ❌ **commit/push/merge ≠ deploy**
+- ✅ **deploy = running Docker container updated**
+
+**Изменение считается задеплоенным только когда:**
+- Код в git (committed + pushed) **И**
+- Docker-контейнер пересобран и перезапущен с новой версией **И**
+- Бот в Telegram отвечает с новым поведением
+
+---
+
+##### STATUS DEFINITIONS
+
 | Статус | Когда |
 |--------|-------|
-| **DEPLOYED** | Код доставлен туда, где пользователь ожидает результат |
-| **NOT_DEPLOYED** | Код не доставлен, есть явная причина |
-| **DEPLOY_PENDING** | Код готов, ждёт следующего шага |
+| **DEPLOYED** | Изменение применено в работающем Docker-контейнере. Бот использует новую версию. |
+| **NOT_DEPLOYED** | Код изменён / commit сделан / push сделан, но Docker-контейнер ещё не обновлён. |
+| **DEPLOY_PENDING** | Код готов, известен точный следующий шаг до обновлённого Docker-контейнера. |
 
-**Если deploy не выполнен:**
-→ Агент обязан кратко указать **точный следующий шаг**
+---
 
-**Пример:**
+##### EXAMPLES
+
+**DEPLOYED:**
+```
+📦 DEPLOY STATUS: DEPLOYED
+
+Docker-контейнер обновлён, бот использует новую версию.
+```
+
+**NOT_DEPLOYED:**
+```
+📦 DEPLOY STATUS: NOT_DEPLOYED
+
+Код закоммичен и запушен, но Docker-контейнер требует ручного обновления.
+Следующий шаг:
+```bash
+docker-compose pull && docker-compose up -d --force-recreate
+```
+```
+
+**DEPLOY_PENDING:**
 ```
 📦 DEPLOY STATUS: DEPLOY_PENDING
 
 Следующий шаг:
 ```bash
-git push origin main
+docker-compose build && docker-compose up -d
 ```
 ```
 
-**Запрещено:**
+---
+
+##### ЗАПРЕЩЕНО
+
+| Паттерн | Почему |
+|---------|--------|
+| ❌ Ставить DEPLOYED после commit/push | Контейнер может быть не обновлён |
+| ❌ Ставить DEPLOYED после merge в main | Контейнер требует отдельного update |
+| ❌ Не указывать следующий шаг при DEPLOY_PENDING | Пользователь не знает как завершить deploy |
+| ❌ Оставлять impression, что задача завершена без Docker update | Изменение не работает в production |
+
+---
+
+##### DEPLOY COMMANDS (reference)
+
+**Обновление Docker-контейнера:**
+```bash
+# Pull + rebuild + restart
+docker-compose pull
+docker-compose build
+docker-compose up -d --force-recreate
+
+# Или одной командой
+docker-compose pull && docker-compose build && docker-compose up -d --force-recreate
+```
+
+**Проверка:**
+```bash
+docker-compose ps
+docker-compose logs -f bot
+```
+
+---
+
+##### ЗАПРЕЩЕНО
+
 - ❌ Оставлять impression, что задача завершена, если код не доставлен
 - ❌ Не указывать следующий шаг при DEPLOY_PENDING
 
@@ -2573,4 +2644,4 @@ Canonical bootstrap:
 
 ---
 
-_Версия: 1.21 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE, MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE, ORCHESTRATION_FLOW, SUBAGENT_RESULT_RETURN_
+_Версия: 1.22 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE (Docker definition), MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE, ORCHESTRATION_FLOW, SUBAGENT_RESULT_RETURN_
