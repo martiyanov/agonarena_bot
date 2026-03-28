@@ -524,7 +524,7 @@ if (pmOutput.match(/[?]|выбери|уточни|подтверди/i)) {
 | **SUBAGENT_WORKFLOW.md** | Pipeline и workflow правила |
 | **state/TODO.md** | Приоритеты задач (P0/P1/P2/P3) |
 | **state/PROJECT_STATE.md** | Текущее состояние проекта |
-| **ACCEPTANCE.md** | Протоколы приёмки |
+| **product/ACCEPTANCE.md** | Протоколы приёмки |
 | **state/DEVLOG.md / PROMPTS.md** | Ранее зафиксированные user decisions |
 
 **PM задаёт вопрос ТОЛЬКО если:**
@@ -542,7 +542,7 @@ if (pmOutput.match(/[?]|выбери|уточни|подтверди/i)) {
    → state/DEVLOG.md, PROMPTS.md, state/PROJECT_STATE.md
    
 2. Потом искать policy
-   → AGENT_POLICY.md, state/TODO.md, ACCEPTANCE.md
+   → AGENT_POLICY.md, state/TODO.md, product/ACCEPTANCE.md
    
 3. Только потом спрашивать пользователя
    → Если нет policy и нет previous decision
@@ -973,7 +973,7 @@ sessions_spawn({
 | `PROMPTS.md` | Архив промтов и результатов |
 | `state/TODO.md` | Backlog и статусы задач |
 | `state/PROJECT_STATE.md` | Текущее состояние проекта |
-| `ACCEPTANCE.md` | Протоколы ручной приёмки |
+| `product/ACCEPTANCE.md` | Протоколы ручной приёмки |
 
 ### Правила логирования
 

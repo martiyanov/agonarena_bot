@@ -178,7 +178,7 @@ PM может задавать вопросы, ответы на которые 
 **Precedence:**
 ```
 1. Existing decision (DEVLOG.md, PROMPTS.md, PROJECT_STATE.md)
-2. Policy (AGENT_POLICY.md, TODO.md, ACCEPTANCE.md)
+2. Policy (AGENT_POLICY.md, state/TODO.md, product/ACCEPTANCE.md)
 3. Ask user (только если нет 1 и 2)
 ```
 
