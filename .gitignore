@@ -7,3 +7,9 @@ data/*.db
 data/*.sqlite3
 ops/ssl/*
 !ops/ssl/.gitkeep
+
+# OpenClaw workspace (local agent state)
+.openclaw/
+
+# Memory notes (local agent continuity, not tracked)
+memory/

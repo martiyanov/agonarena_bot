@@ -1662,4 +1662,153 @@ OWNER_SUMMARY → NEXT TASK (≤10 сек)
 
 ---
 
-_Версия: 1.16 | Создано: 2026-03-27 | Updated: PIPELINE_WATCHDOG_
+## 19. BRANCH_COMPLETION_FLOW
+
+**Проблема:** После завершения задачи (STATUS: DONE) агент не предлагает cleanup ветки → репозиторий засоряется старыми branch.
+
+**Решение:** PM обязан проверить branch status после каждой задачи и предложить safe cleanup flow.
+
+---
+
+### CHECKLIST ПОСЛЕ STATUS: DONE
+
+**PM обязан проверить:**
+
+1. **Current branch:**
+   - `git branch --show-current`
+   - Если `main` → cleanup не требуется
+
+2. **Working tree:**
+   - `git status --short`
+   - Если есть uncommitted changes → предложить commit first
+
+3. **Pushed to origin:**
+   - `git branch -vv`
+   - Если branch не pushed → предложить push first
+
+4. **Merged to main:**
+   - `git merge-base --is-ancestor <branch> main`
+   - Если merged → safe to delete
+   - Если not merged → предложить PR/merge
+
+---
+
+### CLEANUP RECOMMENDATIONS
+
+**После проверки PM должен добавить в OWNER_SUMMARY:**
+
+```markdown
+🧹 BRANCH CLEANUP
+
+Current branch: `<branch-name>`
+Working tree: clean/dirty
+Pushed to origin: yes/no
+Merged to main: yes/no
+
+Recommended action:
+- [ ] Safe to delete (merged + pushed)
+- [ ] Open PR first (not merged)
+- [ ] Commit changes first (dirty tree)
+- [ ] Keep for review (suspicious/special branch)
+
+Commands:
+```bash
+# Если merged и safe to delete:
+git checkout main
+git pull
+git branch -d <branch-name>
+git push origin --delete <branch-name>
+
+# Если не merged — open PR:
+gh pr create --title "<title>" --body "<description>"
+```
+```
+
+---
+
+### BRANCH CLASSIFICATION
+
+| тип ветки | признак | действие |
+|-----------|---------|----------|
+| **feature/** | feature work, bug fix | merge → delete |
+| **chore/** | cleanup, refactoring | merge → delete |
+| **migration/** | structure changes | merge separately, rebase features after |
+| **hotfix/** | urgent production fix | merge ASAP → delete |
+| **WIP/** | work in progress | keep, not ready |
+
+---
+
+### SUSPICIOUS BRANCHES
+
+**Признаки suspicious branch:**
+
+- Large deletions (>1000 lines) без явной задачи
+- Удаляет policy/state/product файлы
+- Не имеет связи с recent TODO.md задачами
+- Based on pre-migration structure
+
+**Действие:** Пометить как `review_required` и НЕ предлагать merge/delete без manual review.
+
+---
+
+### MIGRATION BRANCH RULE
+
+**Для migration/refactor веток:**
+
+- Держать отдельно от feature work
+- Использовать `-clean` suffix для structure-only migrations
+- Merge migration first
+- Rebase feature branches on top of merged migration
+- Delete migration branches after all features rebased
+
+---
+
+### SAFETY RULES
+
+**Агент НЕ должен:**
+
+- ❌ Самостоятельно выполнять merge без явной команды
+- ❌ Самостоятельно удалять ветки без подтверждения
+- ❌ Предлагать delete для WIP branches
+- ❌ Игнорировать suspicious branch flags
+
+**Агент должен:**
+
+- ✅ Предлагать точные git-команды
+- ✅ Помечать uncertain cases как `review_required`
+- ✅ Напоминать о pull перед merge
+- ✅ Проверять working tree перед cleanup
+
+---
+
+### EXAMPLE
+
+**OWNER_SUMMARY блок:**
+
+```markdown
+---
+
+## 🧹 BRANCH CLEANUP
+
+**Branch:** `chore/project-structure-migration-clean`
+**Status:** Ready to merge
+
+- [x] Working tree clean
+- [x] Pushed to origin
+- [ ] Merged to main
+
+**Action:** Merge to main, then delete branch
+
+```bash
+git checkout main
+git pull
+git merge chore/project-structure-migration-clean
+git push origin main
+git branch -d chore/project-structure-migration-clean
+git push origin --delete chore/project-structure-migration-clean
+```
+```
+
+---
+
+_Версия: 1.17 | Создано: 2026-03-27 | Updated: BRANCH_COMPLETION_FLOW_
