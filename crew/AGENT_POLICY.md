@@ -1668,6 +1668,8 @@ OWNER_SUMMARY → NEXT TASK (≤10 сек)
 
 **Решение:** PM обязан проверить branch status после каждой задачи и предложить safe cleanup flow.
 
+**Применение:** Этот раздел применяется ТОЛЬКО если задача выполнялась в SAFE_BRANCH mode (§20). Для DIRECT_MAIN cleanup не требуется.
+
 ---
 
 ### CHECKLIST ПОСЛЕ STATUS: DONE
@@ -1811,4 +1813,240 @@ git push origin --delete chore/project-structure-migration-clean
 
 ---
 
-_Версия: 1.17 | Создано: 2026-03-27 | Updated: BRANCH_COMPLETION_FLOW_
+## 20. GIT_WORKFLOW_MODE
+
+**Проблема:** Workflow с обязательными ветками и PR через GitHub web UI слишком тяжёлый для solo разработки.
+
+**Решение:** Два режима работы — DIRECT_MAIN (default) и SAFE_BRANCH (для рискованных задач).
+
+---
+
+### DEFAULT MODE: DIRECT_MAIN
+
+**Применять по умолчанию для:**
+
+- ✅ Небольших задач (<5 файлов)
+- ✅ Документальных изменений (policy, docs, state)
+- ✅ Bug fixes
+- ✅ Feature additions, которые не ломают существующее
+- ✅ Любих изменений, которые можно безопасно откатить через git revert
+
+**Workflow:**
+
+```
+1. Работа прямо в main
+2. После завершения задачи:
+   - Показать diff summary
+   - git add <files>
+   - git commit -m "<type>: <description>"
+   - git push origin main
+3. Готово — никаких PR и web merge не требуется
+```
+
+**Преимущества:**
+
+- Минимум overhead
+- Нет лишней ручной работы с merge
+- История остаётся линейной и понятной
+- Идеально для solo workflow
+
+---
+
+### BRANCH MODE: SAFE_BRANCH
+
+**Использовать ТОЛЬКО если:**
+
+- ⚠️ Migration / структура проекта
+- ⚠️ Large refactor (>10 файлов или >500 строк)
+- ⚠️ Risky change (может сломать рабочее состояние)
+- ⚠️ Experimental change (нужна возможность отката)
+- ⚠️ Затрагивает критичные файлы (pipeline, config, core logic)
+
+**НЕ включать автоматически без явной причины.**
+
+**Workflow:**
+
+```
+1. Создать ветку: git checkout -b <type>/description
+2. Выполнить задачу
+3. Показать diff summary
+4. git add + git commit
+5. git push origin <branch>
+6. Предложить merge options:
+   - Local merge: git checkout main && git merge <branch>
+   - PR через GitHub (если нужен review)
+   - Rebase если нужно
+7. После merge: удалить ветку (локально и remote)
+```
+
+**Merge через GitHub web UI:**
+
+- ❌ НЕ обязателен
+- ✅ Использовать только если пользователь явно хочет review flow
+- ✅ Local git merge через CLI — допустимая альтернатива
+
+---
+
+### REQUIRED CHECKS BEFORE COMMIT/PUSH
+
+**Перед любым commit/push агент обязан:**
+
+1. **Показать changed files:**
+   ```bash
+   git status --short
+   ```
+
+2. **Показать diff/stat:**
+   ```bash
+   git diff --stat
+   ```
+
+3. **Убедиться что working tree ожидаемый:**
+   - Нет лишних файлов
+   - Нет unrelated changes
+   - Нет untracked файлов, которые должны быть в .gitignore
+
+4. **Не смешивать unrelated changes:**
+   - Если в working tree есть изменения из разных задач → предложить разделить
+
+---
+
+### AFTER TASK COMPLETION
+
+**После STATUS: DONE агент должен предложить:**
+
+```markdown
+📝 GIT NEXT STEP
+
+**Mode:** DIRECT_MAIN | SAFE_BRANCH
+
+**Current:** `<branch-name>`
+**Changed:** N files, +X -Y
+
+Options:
+- [ ] Commit to main + push
+- [ ] Create branch + work there
+- [ ] Review changes first
+
+Commands:
+```bash
+# DIRECT_MAIN
+git add <files>
+git commit -m "<type>: <description>"
+git push origin main
+
+# SAFE_BRANCH
+git checkout -b <type>/description
+git add <files>
+git commit -m "<type>: <description>"
+git push origin <branch>
+```
+```
+
+**Агент НЕ должен:**
+
+- ❌ Навязывать PR/web merge flow
+- ❌ Требовать branch для простых задач
+- ❌ Создавать ветки без объяснения причины
+
+---
+
+### SAFETY RULE
+
+**Агент обязан:**
+
+- ✅ Явно помечать, почему branch mode нужен (если применяется)
+- ✅ Для solo-safe задач предлагать DIRECT_MAIN
+- ✅ Проверять working tree перед commit/push
+- ✅ Не смешивать unrelated changes
+
+**Агент НЕ должен:**
+
+- ❌ Автоматически включать branch mode без причины
+- ❌ Делать risky changes в main без предупреждения
+- ❌ Push'ить без показа diff summary
+
+---
+
+### DECISION TREE
+
+```
+Задача получена
+    ↓
+Это migration / large refactor / risky change?
+    ↓ YES → SAFE_BRANCH (объяснить причину)
+    ↓ NO
+    ↓
+Работа в main
+    ↓
+Commit + push
+    ↓
+Готово
+```
+
+---
+
+### EXAMPLE: DIRECT_MAIN
+
+```markdown
+## 📝 GIT NEXT STEP
+
+**Mode:** DIRECT_MAIN
+**Changed:** 2 files, +45 -3
+
+**Ready to commit to main:**
+- `crew/AGENT_POLICY.md` — policy update
+- `.gitignore` — added memory/
+
+```bash
+git add crew/AGENT_POLICY.md .gitignore
+git commit -m "policy: add branch completion flow"
+git push origin main
+```
+```
+
+---
+
+### EXAMPLE: SAFE_BRANCH
+
+```markdown
+## 📝 GIT NEXT STEP
+
+**Mode:** SAFE_BRANCH (migration — 20+ files moved)
+**Branch:** `chore/project-structure-migration`
+**Changed:** 22 files, +1079 -39
+
+**Why branch:** Structure migration — risky, нужно тестировать перед merge.
+
+```bash
+git checkout -b chore/project-structure-migration
+git add <files>
+git commit -m "chore: move project files into zones"
+git push origin chore/project-structure-migration
+
+# После тестов:
+git checkout main
+git merge chore/project-structure-migration
+git push origin main
+git branch -d chore/project-structure-migration
+git push origin --delete chore/project-structure-migration
+```
+```
+
+---
+
+### INTEGRATION WITH BRANCH_COMPLETION_FLOW (§19)
+
+**BRANCH_COMPLETION_FLOW применяется только если:**
+
+- Задача выполнялась в SAFE_BRANCH mode
+- Ветка создана, pushed, и теперь waiting for merge/delete
+
+**Для DIRECT_MAIN:**
+
+- cleanup не требуется (работа сразу в main)
+- §19 не применяется
+
+---
+
+_Версия: 1.18 | Создано: 2026-03-27 | Updated: GIT_WORKFLOW_MODE (simplify to direct-main)_
