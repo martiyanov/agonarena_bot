@@ -113,22 +113,31 @@ class TestMainMenuDisplay:
     @pytest.mark.asyncio
     async def test_main_menu_displays_correct_buttons(self, fresh_test_db) -> None:
         """Главное меню отображает корректные кнопки."""
-        from app.bot.handlers.menu import start_duel_from_menu
+        from app.bot.handlers.menu import show_main_menu
 
         message = _create_mock_message("/start", from_user_id=123)
 
-        with patch("app.bot.handlers.menu._send_scenario_picker") as mock_scenario_picker:
-            await start_duel_from_menu(message)
-
-            # Проверяем, что были показаны ожидаемые кнопки
-            message.answer.assert_called_once()
-            call_args = message.answer.call_args
-            reply_text = call_args[0][0] if call_args[0] else ""
+        with patch("app.bot.handlers.menu.db_session") as mock_db_session:
+            # Mock the AsyncSessionLocal context manager
+            mock_session = AsyncMock()
+            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session.__aexit__ = AsyncMock(return_value=None)
+            mock_db_session.AsyncSessionLocal.return_value = mock_session
             
-            # Главное меню должно содержать ключевые элементы
-            assert "Агон" in reply_text or "Arena" in reply_text or "поединок" in reply_text.lower()
-            # Также проверяем, что кнопки создаются (через markup)
-            assert hasattr(message, 'answer')
+            # Mock DuelService
+            with patch("app.bot.handlers.menu.DuelService") as MockDuelService:
+                mock_duel_service = MockDuelService.return_value
+                mock_duel_service.get_latest_duel_for_user = AsyncMock(return_value=None)
+                
+                await show_main_menu(message)
+
+                # Проверяем, что было отправлено сообщение с главным меню
+                message.answer.assert_called_once()
+                call_args = message.answer.call_args
+                reply_text = call_args[0][0] if call_args[0] else ""
+                
+                # Главное меню должно содержать ключевые элементы
+                assert "Выберите" in reply_text or "действие" in reply_text.lower()
 
     @pytest.mark.asyncio
     async def test_main_menu_shows_scenario_selection_options(self, fresh_test_db) -> None:

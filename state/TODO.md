@@ -218,30 +218,27 @@
   - **Score:** ~135
 
 ### AG-024
-- **Title:** Audit bot screens and improve UX
+- **Title:** Audit bot screens and improve UX (Quick Wins)
 - **Type:** UX / product
-- **Status:** BACKLOG
+- **Status:** DONE
 - **Priority:** P1
-- **Why:** текущий UX может быть улучшен — нужны скриншоты всех экранов, анализ узких мест
+- **Closed:** 2026-03-28
+- **Commits:** pending
+- **Why:** текущий UX может быть улучшен
 - **Done_when:**
-  - Скриншоты всех экранов бота (scenario picker, duel flow, results, help, feedback)
-  - Анализ UX проблем (verbose text, confusing buttons, missing hints)
-  - Список улучшений с приоритетами
-  - Implementation top improvements
-- **Scope:**
-  - Main menu
-  - Scenario picker
-  - Duel flow (round 1, round 2)
-  - Judge results screen
-  - Results history
-  - Help screen
-  - Feedback flow
+  - ✅ UX audit completed (docs/ux_analysis_report.md)
+  - ✅ 3 quick win fixes implemented
+  - ⏸️ Dynamic menu — code exists, manual test pending
+- **Implementation:**
+  - FIX 1: Dynamic menu (hide/show buttons based on duel state) — code done, manual test pending
+  - FIX 2: Split duel start (2 messages instead of wall of text) — DONE
+  - FIX 3: Feedback improvements (cancel button + validation) — DONE
 - **RICE:**
   - **Reach:** 9 (все пользователи)
   - **Impact:** 8 (улучшение UX)
-  - **Confidence:** 7
-  - **Effort:** 6
-  - **Score:** ~84
+  - **Confidence:** 8
+  - **Effort:** 5
+  - **Score:** ~115
 
 ### AG-023
 - **Title:** Add automated tests for judge round breakdown

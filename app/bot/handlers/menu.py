@@ -7,6 +7,7 @@ import tempfile
 from html import escape
 from pathlib import Path
 from time import time
+from typing import Union
 
 from aiogram import F, Router
 
@@ -48,6 +49,7 @@ NEXT_ROUND_BUTTON_LEGACY = "⏭️ Следующий раунд"
 FINISH_BUTTON = "🏁 Завершить"
 FINISH_BUTTON_LEGACY = "🏁 Завершить поединок"
 FEEDBACK_BUTTON = "💬 Обратная связь"
+CANCEL_FEEDBACK_BUTTON = "❌ Отмена"
 
 MENU_TEXTS = {
     START_BUTTON,
@@ -69,6 +71,7 @@ MENU_TEXTS = {
     FINISH_BUTTON,
     FINISH_BUTTON_LEGACY,
     FEEDBACK_BUTTON,
+    CANCEL_FEEDBACK_BUTTON,
 }
 
 # Пользовательские сценарии: после нажатия кнопки ждём одно следующее сообщение
@@ -162,7 +165,7 @@ async def show_scenarios(message: Message) -> None:
     await _send_scenario_picker(message)
 
 
-async def _start_duel(message: Message, scenario_code: str | None = None) -> None:
+async def _start_duel(message: Message, scenario_code: Union[str, None] = None) -> None:
     async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
         if scenario_code:
@@ -179,23 +182,26 @@ async def _start_duel(message: Message, scenario_code: str | None = None) -> Non
         rounds = await duel_service.get_duel_rounds(session, duel.id)
 
     round_1 = rounds[0]
-    text = "\n".join(
-        [
-            f"<b>Поединок #{duel.id}</b>",
-            f"Сценарий: <b>{escape(scenario.title)}</b>",
-            _timer_hint(duel.turn_time_limit_sec),
-            f"Раунд 1: вы — <b>{escape(round_1.user_role)}</b>, соперник — <b>{escape(round_1.ai_role)}</b>",
-            "",
-            "<b>Первая реплика соперника</b>",
-            escape(round_1.opening_line),
-            "",
-            "<b>Что дальше</b>",
-            "1. Просто отправьте текст или голосовое сообщение.",
-            "2. Дождитесь ответа соперника.",
-            "3. Когда раунд завершён, нажмите «Завершить раунд».",
-        ]
-    )
-    await message.answer(text, parse_mode="HTML")
+    # Message 1: Setup info (compact)
+    setup_text = "\n".join([
+        f"<b>Поединок #{duel.id}</b>",
+        f"Сценарий: {escape(scenario.title)}",
+        f"Вы: {escape(round_1.user_role)} ↔ Соперник: {escape(round_1.ai_role)}",
+        f"⏱ На раунд: {duel.turn_time_limit_sec // 60} мин",
+    ])
+    await message.answer(setup_text, parse_mode="HTML")
+
+    # Message 2: Opening line (separate, prominent)
+    opening_text = "\n".join([
+        "<b>Первая реплика соперника (AI)</b>",
+        f"{escape(round_1.opening_line)}",
+        "",
+        "<b>Что дальше</b>",
+        "1. Ответьте текстом или голосом от лица вашей роли.",
+        "2. Дождитесь ответа соперника.",
+        f"3. Нажмите «{END_ROUND_BUTTON}» когда раунд завершён.",
+    ])
+    await message.answer(opening_text, parse_mode="HTML")
 
 
 async def _build_custom_scenario_from_text(raw_text: str) -> dict:
@@ -497,8 +503,16 @@ async def _download_telegram_file(message: Message) -> Path:
 
 
 @router.message(F.text == START_BUTTON)
-async def start_duel_from_menu(message: Message) -> None:
-    await _send_scenario_picker(message)
+@router.callback_query(F.data == "start_duel")
+async def start_duel_from_menu(callback: CallbackQuery = None, message: Message = None) -> None:
+    # Handle both callback query and direct message
+    if callback:
+        await callback.answer()
+        target_message = callback.message
+    else:
+        target_message = message
+    
+    await _send_scenario_picker(target_message)
 
 
 @router.callback_query(F.data.startswith("start_scenario:"))
@@ -564,10 +578,18 @@ async def make_turn_prompt(message: Message) -> None:
 
 
 @router.message(F.text.in_({END_ROUND_BUTTON, NEXT_ROUND_BUTTON, NEXT_ROUND_BUTTON_LEGACY, FINISH_BUTTON, FINISH_BUTTON_LEGACY}))
-async def end_round_or_finish_duel(message: Message) -> None:
-    user_id = message.from_user.id
+@router.callback_query(F.data == "end_round")
+async def end_round_or_finish_duel(callback: CallbackQuery = None, message: Message = None) -> None:
+    # Handle both callback query and direct message
+    if callback:
+        await callback.answer()
+        target_message = callback.message
+    else:
+        target_message = message
+    
+    user_id = target_message.from_user.id
     if user_id in ACTION_IN_PROGRESS_USERS:
-        await message.answer("Действие уже выполняется. Подождите пару секунд.")
+        await target_message.answer("Действие уже выполняется. Подождите пару секунд.")
         return
 
     ACTION_IN_PROGRESS_USERS.add(user_id)
@@ -576,17 +598,17 @@ async def end_round_or_finish_duel(message: Message) -> None:
             duel_service = DuelService()
             duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=user_id)
             if duel is None:
-                await message.answer(f"Сейчас у вас нет активного поединка. Нажмите «{START_BUTTON}».")
+                await target_message.answer(f"Сейчас у вас нет активного поединка. Нажмите «{START_BUTTON}».")
                 return
 
             round_1 = await duel_service.get_round(session, duel.id, 1)
             round_2 = await duel_service.get_round(session, duel.id, 2)
             if round_1 is None or round_2 is None:
-                await message.answer("Не смог найти раунды этого поединка.")
+                await target_message.answer("Не смог найти раунды этого поединка.")
                 return
 
             if duel.status == "finished" or round_2.status == "finished":
-                await message.answer("Действие уже выполнено: поединок завершён.")
+                await target_message.answer("Действие уже выполнено: поединок завершён.")
                 return
 
             if duel.current_round_number == 1 and round_2.status == "pending":
@@ -605,14 +627,14 @@ async def end_round_or_finish_duel(message: Message) -> None:
                         escape(round_2.opening_line),
                     ]
                 )
-                await message.answer(text, parse_mode="HTML")
+                await target_message.answer(text, parse_mode="HTML")
                 return
 
             if duel.current_round_number == 2 or round_2.status == "in_progress":
-                await _finish_duel_from_menu(message)
+                await _finish_duel_from_menu(target_message)
                 return
 
-            await message.answer("Действие уже выполнено или сейчас недоступно.")
+            await target_message.answer("Действие уже выполнено или сейчас недоступно.")
     finally:
         ACTION_IN_PROGRESS_USERS.discard(user_id)
 
@@ -659,12 +681,20 @@ async def _finish_duel_from_menu(message: Message) -> None:
 
 
 @router.message(F.text.in_({RESULTS_BUTTON, RESULTS_BUTTON_LEGACY, RESULTS_BUTTON_LEGACY_2}))
-async def my_results(message: Message) -> None:
+@router.callback_query(F.data == "results")
+async def my_results(callback: CallbackQuery = None, message: Message = None) -> None:
+    # Handle both callback query and direct message
+    if callback:
+        await callback.answer()
+        target_message = callback.message
+    else:
+        target_message = message
+    
     async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
-        duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=message.from_user.id)
+        duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=target_message.from_user.id)
         if duel is None:
-            await message.answer("Пока нет сохранённых результатов.")
+            await target_message.answer("Пока нет сохранённых результатов.")
             return
 
         rounds = await duel_service.get_duel_rounds(session, duel.id)
@@ -695,62 +725,128 @@ async def my_results(message: Message) -> None:
     if duel.final_verdict:
         lines.append(f"\n<b>Краткий итог</b>\n{escape(duel.final_verdict.splitlines()[0])}")
 
-    await message.answer("\n".join(lines), parse_mode="HTML")
+    await target_message.answer("\n".join(lines), parse_mode="HTML")
 
 
 @router.message(F.text == FEEDBACK_BUTTON)
-async def start_feedback_flow(message: Message) -> None:
-    """Handle the feedback button click - put user in feedback mode"""
-    FEEDBACK_REQUEST_USERS.add(message.from_user.id)
-    await message.answer(
+@router.callback_query(F.data == "feedback")
+async def start_feedback_flow(callback: CallbackQuery = None, message: Message = None) -> None:
+    # Handle both callback query and direct message
+    if callback:
+        await callback.answer()
+        target_message = callback.message
+    else:
+        target_message = message
+    
+    FEEDBACK_REQUEST_USERS.add(target_message.from_user.id)
+    
+    # Show message with cancel button
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=CANCEL_FEEDBACK_BUTTON, callback_data="cancel_feedback")],
+    ])
+    
+    await target_message.answer(
         "💬 Напишите ваше сообщение для обратной связи. "
-        "Я перешлю его владельцу бота, и он обязательно прочитает."
+        "Я перешлю его владельцу бота.\n\n"
+        "Нажмите «❌ Отмена» если передумали.",
+        reply_markup=keyboard,
     )
 
 
-@router.message(lambda msg: msg.from_user.id in FEEDBACK_REQUEST_USERS)
-async def handle_feedback_message(message: Message) -> None:
-    """Handle feedback messages from users and forward to owner"""
-    from app.config import settings
-    
-    user_id = message.from_user.id
-    username = message.from_user.username or f"user_{user_id}"
-    feedback_text = message.text
-    
-    # Remove user from feedback mode
+@router.message(F.text == CANCEL_FEEDBACK_BUTTON)
+@router.callback_query(F.data == "cancel_feedback")
+async def cancel_feedback(update: Union[Message, CallbackQuery]) -> None:
+    # Handle both message and callback query
+    if isinstance(update, CallbackQuery):
+        user_id = update.from_user.id
+        await update.answer()
+        message = update.message
+    else:
+        user_id = update.from_user.id
+        message = update
+
     FEEDBACK_REQUEST_USERS.discard(user_id)
+    await message.answer("❌ Обратная связь отменена.")
+
+
+@router.message(lambda msg: msg.from_user.id in FEEDBACK_REQUEST_USERS and msg.text != CANCEL_FEEDBACK_BUTTON)
+async def handle_feedback_message(message: Message) -> None:
+    feedback_text = message.text.strip()
     
-    # Confirm to user
-    await message.answer(
-        "✅ Спасибо за обратную связь! Сообщение передано владельцу."
-    )
+    # Validate non-empty
+    if not feedback_text:
+        await message.answer("Пустое сообщение. Напишите что-нибудь или нажмите «❌ Отмена».")
+        return
     
-    # Forward to owner if configured
-    if settings.feedback_owner_user_id:
-        try:
+    FEEDBACK_REQUEST_USERS.discard(message.from_user.id)
+    
+    # Try to forward
+    try:
+        from app.config import settings
+        if settings.feedback_owner_user_id:
             from aiogram import Bot
             bot = Bot(token=settings.telegram_bot_token)
             try:
-                owner_text = (
-                    f"📨 <b>Новая обратная связь</b>\n\n"
-                    f"<b>От:</b> @{username} (ID: {user_id})\n"
-                    f"<b>Сообщение:</b>\n{escape(feedback_text)}"
-                )
-                await bot.send_message(
-                    chat_id=settings.feedback_owner_user_id,
-                    text=owner_text,
-                    parse_mode="HTML"
-                )
+                owner_text = f"📨 Новая обратная связь\n\nОт: @{message.from_user.username or message.from_user.id}\n\n{feedback_text}"
+                await bot.send_message(chat_id=settings.feedback_owner_user_id, text=owner_text)
+                await message.answer("✅ Спасибо! Сообщение отправлено владельцу.")
             finally:
                 await bot.session.close()
-        except Exception as e:
-            # Log error but don't tell user - they already got confirmation
-            logger.error("Failed to forward feedback to owner: %s", e)
+        else:
+            # No owner configured — tell user honestly
+            await message.answer("⚠️ Владелец не настроил получение обратной связи. Извините!")
+            logger.warning("Feedback sent but feedback_owner_user_id not configured")
+    except Exception as e:
+        # Be honest about failure
+        await message.answer("⚠️ Не удалось отправить сообщение. Попробуйте позже или напишите напрямую.")
+        logger.error("Feedback delivery failed: %s", e)
+
+
+async def show_main_menu(message: Message) -> None:
+    # Check if user has active duel
+    async with db_session.AsyncSessionLocal() as session:
+        duel_service = DuelService()
+        duel = await duel_service.get_latest_duel_for_user(
+            session, telegram_user_id=message.from_user.id
+        )
+        has_active_duel = duel and duel.status not in ("finished", "cancelled")
+
+    # Build keyboard dynamically
+    keyboard = [
+        [InlineKeyboardButton(text=START_BUTTON, callback_data="start_duel")],
+    ]
+
+    if has_active_duel:
+        # Show duel-related buttons only when duel is active
+        keyboard.append([InlineKeyboardButton(text=END_ROUND_BUTTON, callback_data="end_round")])
+        keyboard.append([InlineKeyboardButton(text=RESULTS_BUTTON, callback_data="results")])
+    else:
+        # Show start-only buttons when no active duel
+        pass  # Just the start button
+
+    keyboard.append([InlineKeyboardButton(text=RULES_BUTTON, callback_data="rules")])
+    keyboard.append([InlineKeyboardButton(text=FEEDBACK_BUTTON, callback_data="feedback")])
+
+    markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    await message.answer("Выберите действие:", reply_markup=markup)
+
+
+@router.message(F.text == "/start")
+async def handle_start_command(message: Message) -> None:
+    await show_main_menu(message)
 
 
 @router.message(F.text.in_({RULES_BUTTON, RULES_BUTTON_LEGACY, SCENARIOS_BUTTON}))
-async def how_it_works(message: Message) -> None:
-    await message.answer(
+@router.callback_query(F.data == "rules")
+async def how_it_works(callback: CallbackQuery = None, message: Message = None) -> None:
+    # Handle both callback query and direct message
+    if callback:
+        await callback.answer()
+        target_message = callback.message
+    else:
+        target_message = message
+    
+    await target_message.answer(
         "<b>ℹ️ Справка</b>\n\n"
         "<b>Как проходит поединок</b>\n"
         "• Поединок состоит из двух раундов.\n"
@@ -776,7 +872,7 @@ async def process_voice_turn(message: Message) -> None:
         await message.answer("Распознавание голоса пока не настроено. Отправьте сообщение текстом.")
         return
 
-    temp_path: Path | None = None
+    temp_path: Union[Path, None] = None
     try:
         await message.answer("Голосовое получил. Распознаю…")
         temp_path = await _download_telegram_file(message)
@@ -817,7 +913,7 @@ async def process_audio_turn(message: Message) -> None:
         await message.answer("Распознавание аудио пока не настроено. Отправьте сообщение текстом.")
         return
 
-    temp_path: Path | None = None
+    temp_path: Union[Path, None] = None
     try:
         await message.answer("Аудио получил. Распознаю…")
         temp_path = await _download_telegram_file(message)
