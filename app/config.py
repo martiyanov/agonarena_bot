@@ -13,9 +13,17 @@ class Settings(BaseSettings):
     feedback_owner_user_id: int | None = None
 
     database_url: str = "sqlite+aiosqlite:///./data/agonarena.db"
+    
+    # Primary LLM (ModelStudio - Chinese models)
+    modelstudio_api_key: str = ""
+    modelstudio_base_url: str = "https://api.modelscope.cn/v1"
+    llm_model: str = "qwen3.5-plus"
+    
+    # Fallback LLM (OpenAI)
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
-    llm_model: str = "gpt-4.1-mini"
+    openai_fallback_model: str = "gpt-4o-mini"
+    
     stt_model: str = "whisper-1"
 
     log_level: str = "INFO"

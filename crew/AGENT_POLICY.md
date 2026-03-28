@@ -21,10 +21,37 @@
 | **TEST** | `modelstudio/qwen3-coder-plus` | Всегда (валидация) |
 | **ARCH** | `modelstudio/qwen3-max-2026-01-23` | On-demand (архитектура, state, refactor) |
 
-### 1.3 OpenAI policy
+### 1.3 LLM Fallback Policy
+
+**Priority:**
+1. **ModelStudio (Chinese models)** — PRIMARY
+   - `qwen3.5-plus` — PM, ANALYST
+   - `qwen3-coder-plus` — DEV, TEST
+   - `qwen3-max-2026-01-23` — ARCH
+
+2. **OpenAI** — FALLBACK (только если ModelStudio недоступен)
+   - `gpt-4o-mini` — fallback модель
+   - Использовать ТОЛЬКО если ModelStudio возвращает ошибку
+   - Логировать использование fallback
+
+**Правила:**
 - ❌ Не использовать OpenAI по умолчанию
-- ⚠️ `gpt-5.4` — только как резерв по явной команде
-- ❌ `gpt-4o-mini` — не использовать
+- ✅ Автоматический fallback на OpenAI при ошибке ModelStudio
+- ⚠️ Если оба provider недоступны → ошибка с явным сообщением
+- 📝 Логировать все fallback переключения
+
+**Config (.env):**
+```bash
+# Primary (обязательно)
+MODELSTUDIO_API_KEY=your_key_here
+MODELSTUDIO_BASE_URL=https://api.modelscope.cn/v1
+LLM_MODEL=qwen3.5-plus
+
+# Fallback (рекомендуется)
+OPENAI_API_KEY=your_key_here
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_FALLBACK_MODEL=gpt-4o-mini
+```
 
 ---
 
@@ -2658,4 +2685,4 @@ Canonical bootstrap:
 
 ---
 
-_Версия: 1.23 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE (Docker definition + build commands), MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE, ORCHESTRATION_FLOW, SUBAGENT_RESULT_RETURN_
+_Версия: 1.24 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE (Docker definition + build commands), MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE, ORCHESTRATION_FLOW, SUBAGENT_RESULT_RETURN, LLM_FALLBACK_POLICY_
