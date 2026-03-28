@@ -151,7 +151,7 @@ async def _send_scenario_picker(message: Message) -> None:
         short_name = scenario.title.split()[0] if scenario.title.split() else scenario.title
         if len(short_name) > 10:
             short_name = short_name[:10] + ".."
-        scenario_buttons.append(InlineKeyboardButton(text=f"[{i}. {short_name}]", callback_data=f"pick_scenario:{i}"))
+        scenario_buttons.append(InlineKeyboardButton(text=f"[{i}. {short_name}]", callback_data=f"pick_scenario:{scenario.id}"))
     
     # Add scenario buttons in rows of 5
     for i in range(0, len(scenario_buttons), 5):
@@ -587,17 +587,13 @@ async def start_duel_from_pick_scenario(callback: CallbackQuery) -> None:
         await _start_duel(callback.message)
         return
     
-    # Если выбран номер сценария
+    # Если выбран ID сценария
     try:
-        scenario_number = int(scenario_selector)
-        # Получаем список активных сценариев
+        scenario_id = int(scenario_selector)
         async with db_session.AsyncSessionLocal() as session:
-            scenarios = await ScenarioService().list_active(session)
-            
-            # Проверяем, что номер сценария в пределах доступного количества
-            if 1 <= scenario_number <= len(scenarios):
-                selected_scenario = scenarios[scenario_number - 1]
-                await _start_duel(callback.message, scenario_code=selected_scenario.code)
+            scenario = await DuelService().get_scenario_by_id(session, scenario_id)
+            if scenario and scenario.is_active:
+                await _start_duel(callback.message, scenario_code=scenario.code)
             else:
                 await callback.message.answer("Выбранный сценарий больше не доступен.")
     except ValueError:
@@ -652,7 +648,7 @@ async def show_scenarios_page(callback: CallbackQuery) -> None:
             short_name = scenario.title.split()[0] if scenario.title.split() else scenario.title
             if len(short_name) > 10:
                 short_name = short_name[:10] + ".."
-            scenario_buttons.append(InlineKeyboardButton(text=f"[{i}. {short_name}]", callback_data=f"pick_scenario:{i}"))
+            scenario_buttons.append(InlineKeyboardButton(text=f"[{i}. {short_name}]", callback_data=f"pick_scenario:{scenario.id}"))
         
         # Add scenario buttons in rows of 5
         for i in range(0, len(scenario_buttons), 5):
