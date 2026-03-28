@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 from typing import Literal, Sequence
 
@@ -6,6 +7,8 @@ from pydantic import BaseModel
 
 from app.db.models import Duel, DuelMessage, JudgeResult
 from app.services.llm_service import LLMService
+
+logger = logging.getLogger(__name__)
 
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "judges.md"
 
@@ -53,7 +56,12 @@ class JudgeService:
                     user_prompt=self._build_user_prompt(context),
                     temperature=0.2,
                 )
+                logger.info("LLM judge response: %s", raw[:200])
                 data = json.loads(raw)
+                logger.info("Parsed verdict: winner=%s, has_r1=%s, has_r2=%s", 
+                           data.get("winner"), 
+                           bool(data.get("round1_comment")),
+                           bool(data.get("round2_comment")))
                 return JudgeVerdict(
                     judge_type=context.judge_type,
                     winner=data.get("winner", "draw"),
@@ -61,7 +69,8 @@ class JudgeService:
                     round1_comment=data.get("round1_comment", ""),
                     round2_comment=data.get("round2_comment", ""),
                 )
-            except Exception:
+            except Exception as e:
+                logger.error("LLM judge failed: %s", e)
                 pass
 
         return self._fallback_verdict(context)
