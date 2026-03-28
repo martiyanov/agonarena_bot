@@ -750,23 +750,6 @@ async def handle_feedback_message(message: Message) -> None:
 
 @router.message(F.text.in_({RULES_BUTTON, RULES_BUTTON_LEGACY, SCENARIOS_BUTTON}))
 async def how_it_works(message: Message) -> None:
-    async with db_session.AsyncSessionLocal() as session:
-        scenarios = await ScenarioService().list_active(session)
-
-    scenario_lines: list[str] = []
-    for item in scenarios:
-        scenario_lines.append(
-            "\n".join(
-                [
-                    f"• <b>{escape(item.title)}</b>",
-                    f"Код: <code>{escape(item.code)}</code>",
-                    f"Роли: {escape(item.role_a_name)} ↔ {escape(item.role_b_name)}",
-                ]
-            )
-        )
-
-    scenarios_block = "\n\n".join(scenario_lines) if scenario_lines else "Сценарии пока не добавлены."
-
     await message.answer(
         "<b>ℹ️ Справка</b>\n\n"
         "<b>Как проходит поединок</b>\n"
@@ -778,8 +761,6 @@ async def how_it_works(message: Message) -> None:
         "2. Просто отправляйте реплики текстом или голосом.\n"
         f"3. В конце каждого раунда нажимайте <b>«{escape(END_ROUND_BUTTON)}»</b>.\n"
         "4. После первого нажатия начнётся второй раунд, после второго — завершится поединок.\n\n"
-        "<b>Сценарии</b>\n"
-        f"{scenarios_block}\n\n"
         "<b>Обратная связь</b>\n"
         "Если хотите оставить отзыв или предложить улучшение, нажмите кнопку <b>«💬 Обратная связь»</b> в главном меню.\n\n"
         "<b>Поддержать проект</b>\n"
