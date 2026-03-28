@@ -25,9 +25,9 @@
 - [x] migration branch created
 - [x] working tree cleaned before migration
 - [x] target directories scaffold created
-- [ ] root md files moved into target zones
-- [ ] path references updated
-- [ ] migration finalized
+- [x] root md files moved into target zones
+- [x] path references updated
+- [x] migration finalized
 
 ## Reading Strategy
 
@@ -38,4 +38,4 @@
 
 ## Notes
 
-During migration, some files may temporarily remain in root until their move step is executed.
+Migration completed 2026-03-28. All project files organized into target zones.
