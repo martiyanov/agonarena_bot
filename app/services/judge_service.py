@@ -58,6 +58,8 @@ class JudgeService:
                     judge_type=context.judge_type,
                     winner=data.get("winner", "draw"),
                     comment=data.get("comment", "Судья не дал развёрнутый комментарий."),
+                    round1_comment=data.get("round1_comment", ""),
+                    round2_comment=data.get("round2_comment", ""),
                 )
             except Exception:
                 pass
