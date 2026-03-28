@@ -194,25 +194,6 @@
   - **Effort:** 3
   - **Score:** 128
 
-### AG-015
-- **Title:** Analyze token efficiency across development pipeline
-- **Type:** analysis
-- **Status:** TODO
-- **Priority:** P1
-- **Why:** нужно оценить, где теряются токены в pipeline (PM/ANALYST/DEV/ARCH/TEST + delivery)
-- **Done_when:**
-  - проанализирован расход токенов на каждом этапе pipeline
-  - выявлены потери: лишние вопросы, дублирование, verbose formatting
-  - рекомендованы оптимизации (без реализации пока)
-- **Risks:** analysis может затянуться без чётких метрик
-- **RICE:**
-  - **Reach:** 9
-  - **Impact:** 7
-  - **Confidence:** 6
-  - **Effort:** 4
-  - **Score:** 94.5
-- **Note:** Сначала analysis phase. Потом решение: отдельная роль или использование ANALYST.
-
 ## BACKLOG
 
 ### AG-011
