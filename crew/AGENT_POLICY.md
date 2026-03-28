@@ -337,7 +337,44 @@ PM может вручную переопределить автоматичес
 
 ---
 
-### 2.3 Enforcement Rules (критично)
+### 2.3 PM_EXECUTION_GATE
+
+**Проблема:** Агент может перескакивать в свободный analysis-style ответ без PM-координации.
+
+**Решение:** PM — единственная точка входа и выхода для task execution.
+
+---
+
+#### PM ОБЯЗАННОСТИ
+
+**PM обязан:**
+1. Классифицировать задачу (bug / feature / UX / refactor / docs)
+2. Выбрать режим выполнения (DIRECT_MAIN / SAFE_BRANCH)
+3. Определить, нужен ли ANALYST/DEV/TEST/ARCH
+4. Собрать OWNER_SUMMARY в конце
+
+**Запрещено:**
+- ❌ Перескакивать сразу в свободный analysis-style ответ
+- ❌ Начинать реализацию без PM-классификации
+- ❌ Пропускать PM-координацию для execution tasks
+
+---
+
+#### EXECUTION_VS_ANALYSIS
+
+| Тип запроса | Режим |
+|-------------|-------|
+| "Нашёл багу: ..." | EXECUTION (PM → DEV → TEST) |
+| "Сделай X" | EXECUTION (PM → DEV → TEST) |
+| "Как лучше сделать X?" | ANALYSIS (PM → ANALYST optional) |
+| "Что думаешь про X?" | FREE (без pipeline) |
+
+**Для EXECUTION задач:**
+→ PM обязан довести до результата (fix / commit / push / deploy status)
+
+---
+
+### 2.4 Enforcement Rules (критично)
 
 - ❌ **НЕЛЬЗЯ** выполнять изменения кода напрямую в main session
 - ❌ **НЕЛЬЗЯ** пропускать TEST этап
@@ -1090,7 +1127,191 @@ PUSH TO ORIGIN
 
 ---
 
-## 8. TOKEN_OBSERVABILITY
+## 8. EXECUTION_COMPLETION_RULE
+
+**Проблема:** Агент останавливается на анализе / safe fix proposal без доведения до фактического результата.
+
+**Решение:** Для execution-задач обязательный полный цикл до deploy status.
+
+---
+
+#### DEFAULT EXPECTATION
+
+**Если пользователь запросил исправление бага / внесение изменения:**
+
+```
+1. analyze (причина, scope)
+2. implement (фактическое изменение)
+3. validate (TEST PASS)
+4. show changed files + diff summary
+5. update required project docs/state (только если justified by policy)
+6. commit
+7. push (в DIRECT_MAIN mode), если пользователь не запретил явно
+8. сообщить deploy status
+```
+
+**Агент НЕ должен останавливаться на:**
+- ❌ Только анализе причины
+- ❌ Только safe fix proposal
+- ❌ Списке идей без реализации
+
+---
+
+#### DEPLOY_STATUS_RULE
+
+**После bugfix/task execution агент обязан явно указать один из статусов:**
+
+| Статус | Когда |
+|--------|-------|
+| **DEPLOYED** | Код доставлен туда, где пользователь ожидает результат |
+| **NOT_DEPLOYED** | Код не доставлен, есть явная причина |
+| **DEPLOY_PENDING** | Код готов, ждёт следующего шага |
+
+**Если deploy не выполнен:**
+→ Агент обязан кратко указать **точный следующий шаг**
+
+**Пример:**
+```
+📦 DEPLOY STATUS: DEPLOY_PENDING
+
+Следующий шаг:
+```bash
+git push origin main
+```
+```
+
+**Запрещено:**
+- ❌ Оставлять impression, что задача завершена, если код не доставлен
+- ❌ Не указывать следующий шаг при DEPLOY_PENDING
+
+---
+
+## 9. MEMORY_WRITE_RULE
+
+**Проблема:** Агент обновляет memory/* без явной необходимости.
+
+**Решение:** memory/* не обновлять по умолчанию в обычных execution tasks.
+
+---
+
+#### ПРАВИЛО
+
+**memory/* можно трогать только если:**
+- ✅ Пользователь явно просит
+- ✅ Есть специальный режим / отдельная задача на memory continuity
+- ✅ Это end-of-day session wrap-up
+
+**Для bugfix/doc/policy/refactor задач:**
+- ❌ memory/* **НЕ** является обязательным update target
+- ✅ Обновлять только state/DEVLOG.md, state/TODO.md, state/PROJECT_STATE.md при необходимости
+
+---
+
+#### DEFAULT BEHAVIOR
+
+| Тип задачи | memory/* update? |
+|------------|------------------|
+| Bug fix | ❌ No |
+| Policy update | ❌ No |
+| Refactor | ❌ No |
+| Feature implementation | ❌ No |
+| Memory continuity task | ✅ Yes |
+| User explicitly requests | ✅ Yes |
+
+---
+
+## 10. PROJECT_DOC_UPDATE_SCOPE
+
+**Проблема:** Агент автоматически меняет PROJECT_CONTEXT_SUMMARY.md без достаточного обоснования.
+
+**Решение:** Чёткие критерии для обновления project docs.
+
+---
+
+#### PROJECT_CONTEXT_SUMMARY.md
+
+**Обновлять только если:**
+- ✅ Реально изменился bootstrap/navigation/project-wide state
+- ✅ Это отдельная docs task
+- ✅ Изменение явно нужно по смыслу (major milestone)
+
+**Для обычного bugfix чаще релевантны:**
+- state/DEVLOG.md
+- state/PROJECT_STATE.md
+- state/TODO.md
+
+**И только если изменение действительно отражает состояние проекта.**
+
+---
+
+#### DEFAULT BEHAVIOR
+
+| Тип задачи | PROJECT_CONTEXT_SUMMARY.md | state/*.md |
+|------------|---------------------------|------------|
+| Bug fix | ❌ No | ✅ If relevant |
+| Policy update | ❌ No | ✅ DEVLOG.md |
+| Major milestone | ✅ Yes | ✅ Yes |
+| Docs task | ✅ If scope | ✅ Yes |
+
+---
+
+## 11. POST_TASK_SANITY_CHECK
+
+**Проблема:** После изменений появляются stray root duplicates и мусор.
+
+**Решение:** Обязательная проверка workspace после любых изменений.
+
+---
+
+#### CHECKLIST
+
+**После любых изменений агент обязан проверить:**
+
+```bash
+git status --short
+```
+
+**Проверить:**
+- ✅ Не появились ли stray root duplicates для canonical crew files
+- ✅ Не были ли случайно созданы forbidden root copies:
+  - AGENTS.md
+  - HEARTBEAT.md
+  - IDENTITY.md
+  - SOUL.md
+  - TOOLS.md
+  - USER.md
+- ✅ Не появился ли неожиданный мусор вне scope задачи
+
+---
+
+#### STRAY DUPLICATES HANDLING
+
+**Если stray duplicates появились:**
+- ❌ **НЕ коммитить** их
+- ✅ Пометить как cleanup candidates
+- ✅ Предложить удалить (trash/rm)
+- ✅ Canonical files редактировать только в crew/
+
+---
+
+#### CANONICAL CREW PATHS
+
+| Файл | Canonical path |
+|------|----------------|
+| AGENTS.md | `crew/AGENTS.md` |
+| HEARTBEAT.md | `crew/HEARTBEAT.md` |
+| IDENTITY.md | `crew/IDENTITY.md` |
+| SOUL.md | `crew/SOUL.md` |
+| TOOLS.md | `crew/TOOLS.md` |
+| USER.md | `crew/USER.md` |
+
+**Запрещено:**
+- ❌ Создавать эти файлы в repository root
+- ❌ Редактировать root-копии вместо canonical files
+
+---
+
+## 12. TOKEN_OBSERVABILITY
 
 **Проблема:** Нет видимости расхода токенов на pipeline этапы.
 
@@ -1468,6 +1689,24 @@ Violation type: <тип нарушения>
 **Проблема:** Описание задач и сообщения начинают переходить на английский → ухудшается читаемость.
 
 **Решение:** Строгое разделение языков для разных контекстов.
+
+---
+
+### LANGUAGE_OUTPUT_DISCIPLINE
+
+**В execution-ответах:**
+- ✅ project/process/doc parts — писать на русском
+- ✅ code / file paths / identifiers / exact commands — английский допустим
+
+**Запрещено:**
+- ❌ Смешивать большие смысловые блоки на английском без причины
+- ❌ Писать user-facing сообщения на английском
+
+**Где применять:**
+- Все user-facing сообщения
+- Все pipeline handoff сообщения
+- Все OWNER_SUMMARY
+- Все project docs (crew/, state/, product/, architecture/, docs/)
 
 ---
 
@@ -2118,6 +2357,49 @@ git push origin --delete chore/project-structure-migration
 
 ---
 
+### TELEGRAM_PIN_BOOTSTRAP_NOTE
+
+**Проблема:** Pinned bootstrap/source-of-truth message в Telegram может отсутствовать или устареть.
+
+**Решение:** Агент должен пометить это как operational note, но не придумывать старые root paths.
+
+---
+
+#### CANONICAL BOOTSTRAP PATHS
+
+**Source of truth — только эти файлы:**
+- PROJECT_CONTEXT_SUMMARY.md
+- PROJECT_INDEX.md
+- state/PROJECT_STATE.md
+- state/TODO.md
+
+**Агент обязан:**
+- ✅ Использовать эти файлы как bootstrap context
+- ✅ Пометить operational note, если pinned message отсутствует/устарел
+- ❌ **НЕ** придумывать старые root paths
+- ❌ **НЕ** считать root-файлы (вне crew/) валидными
+
+---
+
+#### OPERATIONAL NOTE FORMAT
+
+**Если pinned message отсутствует:**
+```
+📌 OPERATIONAL NOTE
+
+Pinned bootstrap message в Telegram отсутствует или устарел.
+
+Canonical bootstrap:
+- PROJECT_CONTEXT_SUMMARY.md
+- PROJECT_INDEX.md
+- state/PROJECT_STATE.md
+- state/TODO.md
+
+Рекомендация: Закрепить актуальный message с навигацией.
+```
+
+---
+
 ### INTEGRATION
 
 **PROJECT_DOC_LANGUAGE_RULE применяется:**
@@ -2132,4 +2414,4 @@ git push origin --delete chore/project-structure-migration
 
 ---
 
-_Версия: 1.19 | Создано: 2026-03-27 | Updated: PROJECT_DOC_LANGUAGE_AND_CREW_PATH_RULE_
+_Версия: 1.20 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE, MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE_
