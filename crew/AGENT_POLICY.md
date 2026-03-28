@@ -29,15 +29,18 @@
    - `qwen3-coder-plus` — DEV, TEST
    - `qwen3-max-2026-01-23` — ARCH
 
-2. **OpenAI** — FALLBACK (только если ModelStudio недоступен)
-   - `gpt-4o-mini` — fallback модель
-   - Использовать ТОЛЬКО если ModelStudio возвращает ошибку
-   - Логировать использование fallback
+2. **Kimi (Moonshot)** — FALLBACK 1
+   - `kimi-k2.5` — fallback модель 1
+   - Использовать если ModelStudio возвращает ошибку
+
+3. **OpenAI** — FALLBACK 2 (last resort)
+   - `gpt-4o-mini` — fallback модель 2
+   - Использовать ТОЛЬКО если ModelStudio + Kimi недоступны
 
 **Правила:**
-- ❌ Не использовать OpenAI по умолчанию
-- ✅ Автоматический fallback на OpenAI при ошибке ModelStudio
-- ⚠️ Если оба provider недоступны → ошибка с явным сообщением
+- ❌ Не использовать OpenAI/Kimi по умолчанию
+- ✅ Автоматический fallback: ModelStudio → Kimi → OpenAI
+- ⚠️ Если все providers недоступны → ошибка с явным сообщением
 - 📝 Логировать все fallback переключения
 
 **Config (.env):**
@@ -47,7 +50,12 @@ MODELSTUDIO_API_KEY=your_key_here
 MODELSTUDIO_BASE_URL=https://api.modelscope.cn/v1
 LLM_MODEL=qwen3.5-plus
 
-# Fallback (рекомендуется)
+# Fallback 1 (рекомендуется)
+KIMI_API_KEY=your_kimi_key_here
+KIMI_BASE_URL=https://api.moonshot.cn/v1
+KIMI_FALLBACK_MODEL=kimi-k2.5
+
+# Fallback 2 (last resort)
 OPENAI_API_KEY=your_key_here
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_FALLBACK_MODEL=gpt-4o-mini
@@ -2685,4 +2693,4 @@ Canonical bootstrap:
 
 ---
 
-_Версия: 1.24 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE (Docker definition + build commands), MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE, ORCHESTRATION_FLOW, SUBAGENT_RESULT_RETURN, LLM_FALLBACK_POLICY_
+_Версия: 1.25 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE (Docker definition + build commands), MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE, ORCHESTRATION_FLOW, SUBAGENT_RESULT_RETURN, LLM_FALLBACK_POLICY (ModelStudio → Kimi → OpenAI)_

@@ -19,7 +19,12 @@ class Settings(BaseSettings):
     modelstudio_base_url: str = "https://api.modelscope.cn/v1"
     llm_model: str = "qwen3.5-plus"
     
-    # Fallback LLM (OpenAI)
+    # Fallback 1: Kimi (Moonshot)
+    kimi_api_key: str = ""
+    kimi_base_url: str = "https://api.moonshot.cn/v1"
+    kimi_fallback_model: str = "kimi-k2.5"
+    
+    # Fallback 2: OpenAI (last resort)
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
     openai_fallback_model: str = "gpt-4o-mini"
