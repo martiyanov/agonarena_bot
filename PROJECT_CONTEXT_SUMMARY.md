@@ -1,95 +1,95 @@
 # PROJECT CONTEXT SUMMARY
 
-**Bootstrap file for starting a new LLM session.**
+**Bootstrap-файл для старта новой LLM-сессии.**
 
 ---
 
-## PURPOSE
+## НАЗНАЧЕНИЕ
 
-This file is your entrypoint when starting a session. Read this first, then PROJECT_INDEX.md, then only the files relevant to your current task. Keep this file short and refresh it regularly.
-
----
-
-## CURRENT_PROJECT_STATE
-
-**Project:** Agon Arena — Telegram bot for managerial duel practice
-
-**Status:** MVP in active polishing phase
-
-**Current phase:** Post-migration cleanup + feature stabilization
-
-**What matters now:**
-- Structure migration complete (2026-03-28)
-- All files organized into zones: crew/, state/, product/, architecture/, docs/
-- Git workflow simplified to DIRECT_MAIN by default
-- Core duel-flow is stable and tested
+Этот файл — ваша точка входа при старте сессии. Прочитайте его сначала, затем PROJECT_INDEX.md, затем только файлы, релевантные вашей текущей задаче. Держите этот файл коротким и регулярно обновляйте.
 
 ---
 
-## NAVIGATION
+## ТЕКУЩЕЕ СОСТОЯНИЕ ПРОЕКТА
 
-| Zone | Purpose |
+**Проект:** Agon Arena — Telegram-бот для практики управленческих поединков
+
+**Статус:** MVP в фазе активной полировки
+
+**Текущая фаза:** Post-migration cleanup + стабилизация функциональности
+
+**Что важно сейчас:**
+- Миграция структуры завершена (2026-03-28)
+- Все файлы организованы по зонам: crew/, state/, product/, architecture/, docs/
+- Git workflow упрощён до DIRECT_MAIN по умолчанию
+- Core duel-flow стабилен и протестирован
+
+---
+
+## НАВИГАЦИЯ
+
+| Зона | Назначение |
 |------|---------|
-| **PROJECT_INDEX.md** | Project map + zone navigation |
+| **PROJECT_INDEX.md** | Карта проекта + навигация по зонам |
 | **crew/** | Policy, workflow, role files (AGENT_POLICY.md, SOUL.md, etc.) |
-| **state/** | Current state, backlog, devlog (TODO.md, PROJECT_STATE.md, DEVLOG.md) |
+| **state/** | Текущее состояние, backlog, devlog (TODO.md, PROJECT_STATE.md, DEVLOG.md) |
 | **product/** | Product docs (PROJECT.md, ACCEPTANCE.md, USER_FLOW.md) |
-| **architecture/** | System structure (ARCHITECTURE.md) |
+| **architecture/** | Структура системы (ARCHITECTURE.md) |
 | **docs/** | Reference docs, baselines, analysis |
-| **memory/** | Daily memory notes (historical, local) |
+| **memory/** | Daily memory notes (исторические, локальные) |
 | **app/** | Application code |
 
 ---
 
-## SESSION_START_RULE
+## ПРАВИЛО СТАРТА СЕССИИ
 
-1. **Start here** — read this file
-2. **Read PROJECT_INDEX.md** — understand project structure
-3. **Read only what's relevant** — use zones to locate needed files
-4. **Prefer current state** — state/* files over historical notes when they conflict
+1. **Начните здесь** — прочитайте этот файл
+2. **Прочитайте PROJECT_INDEX.md** — поймите структуру проекта
+3. **Читайте только релевантное** — используйте зоны для поиска нужных файлов
+4. **Предпочитайте текущее состояние** — state/* файлы важнее исторических заметок при конфликтах
 
 ---
 
-## CURRENT_FOCUS
+## ТЕКУЩИЙ ФОКУС
 
-**Completed:**
-- ✅ Structure migration (all files in target zones)
-- ✅ Git workflow policy simplified (DIRECT_MAIN default)
-- ✅ Core duel-flow stable (tests passing)
-- ✅ Telegram UX working (scenario picker, round buttons, voice input)
+**Завершено:**
+- ✅ Миграция структуры (все файлы в целевых зонах)
+- ✅ Git workflow policy упрощён (DIRECT_MAIN по умолчанию)
+- ✅ Core duel-flow стабилен (тесты проходят)
+- ✅ Telegram UX работает (scenario picker, round buttons, voice input)
 
-**No urgent structural changes needed:**
-- Policy is current (v1.18)
-- Structure is stable
-- No P0 bugs open
+**Срочные структурные изменения не требуются:**
+- Policy актуален (v1.19)
+- Структура стабильна
+- Нет открытых P0 багов
 
-**Next logical work classes:**
-- Feature backlog (duel history UX, scoring rubric improvements)
-- Polish + refinements based on user feedback
-- Technical debt cleanup (if identified)
+**Следующие логичные классы работ:**
+- Feature backlog (duel history UX, улучшения scoring rubric)
+- Полировка + refinements по user feedback
+- Technical debt cleanup (если выявлен)
 
 ---
 
 ## ACTIVE_POLICY_HIGHLIGHTS
 
-**Operational rules (from crew/AGENT_POLICY.md):**
+**Операционные правила (из crew/AGENT_POLICY.md):**
 
-1. **PM = single entry/exit** — All coordination through PM role
-2. **THINKING_MODE_CONTROL** — EXECUTION (default), ANALYSIS, FREE modes
-3. **DIRECT_MAIN git workflow** — Work in main by default, commit + push after task
-4. **SAFE_BRANCH only for risky work** — migration, large refactor, experimental changes
-5. **Mandatory documentation updates** — Update state/* files after meaningful changes
-6. **Chinese stack priority** — ModelStudio models default (qwen3.5-plus, qwen3-coder-plus)
+1. **PM = single entry/exit** — вся координация через роль PM
+2. **THINKING_MODE_CONTROL** — режимы EXECUTION (default), ANALYSIS, FREE
+3. **DIRECT_MAIN git workflow** — работа в main по умолчанию, commit + push после задачи
+4. **SAFE_BRANCH только для рискованных работ** — migration, large refactor, experimental changes
+5. **Mandatory documentation updates** — обновление state/* файлов после значимых изменений
+6. **Chinese stack priority** — ModelStudio модели по умолчанию (qwen3.5-plus, qwen3-coder-plus)
 
 ---
 
-## NOTES
+## ЗАМЕТКИ
 
-- **memory/*.md** are historical/local continuity notes — read for context, don't treat as source of truth
-- **PROJECT_CONTEXT_SUMMARY.md** should stay short — refresh this file every few sessions
-- **When in doubt** — check crew/AGENT_POLICY.md for operational rules, state/TODO.md for backlog
+- **memory/*.md** — исторические/локальные continuity notes — читайте для контекста, не treat as source of truth
+- **PROJECT_CONTEXT_SUMMARY.md** должен оставаться коротким — обновляйте этот файл каждые несколько сессий
+- **Если сомневаетесь** — проверьте crew/AGENT_POLICY.md для operational rules, state/TODO.md для backlog
 
 ---
 
 **Updated:** 2026-03-28  
-**Version:** 2.0 (post-migration refresh)
+**Version:** 2.1 (russian translation)
