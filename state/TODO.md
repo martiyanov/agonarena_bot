@@ -196,6 +196,25 @@
 
 ## BACKLOG
 
+### AG-023
+- **Title:** Add automated tests for judge round breakdown
+- **Type:** test
+- **Status:** DONE
+- **Priority:** P1
+- **Closed:** 2026-03-28
+- **Why:** автоматизировать тестирование round breakdown вместо ручного
+- **Done_when:** тесты проверяют LLM parsing, format, display ✅
+- **Implementation:**
+  - tests/test_judge_round_breakdown.py — 9 тестов (все PASS)
+  - Проверяют: LLM response parsing, _format_final_verdict, DB model
+  - Запуск: `pytest tests/test_judge_round_breakdown.py -v`
+- **RICE:**
+  - **Reach:** 8
+  - **Impact:** 9
+  - **Confidence:** 8
+  - **Effort:** 5
+  - **Score:** ~120
+
 ### AG-011
 - **Title:** Voice message breaks duel-flow and starts new scenario
 - **Type:** bug
