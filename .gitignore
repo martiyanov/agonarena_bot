@@ -13,3 +13,11 @@ ops/ssl/*
 
 # Memory notes (local agent continuity, not tracked)
 memory/
+
+# Stray root copies from OpenClaw skill injector
+AGENTS.md
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md

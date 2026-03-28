@@ -445,6 +445,165 @@ PM → (ANALYST?) → DEV → (ARCH?) → TEST → OWNER_SUMMARY
 
 ---
 
+### 2.6 ORCHESTRATION_FLOW
+
+**Проблема:** Оркестрация размазана по многим sections — нет единого end-to-end flow описания.
+
+**Решение:** Явный end-to-end pipeline с handoff контрактами.
+
+---
+
+#### End-to-End Pipeline
+
+```
+PM → [ANALYST?] → DEV → [ARCH?] → TEST → PM → OWNER_SUMMARY
+```
+
+**Cross-references:**
+- Role Triggers: Section 2.2.1
+- AUTO_ROLE_SELECTION: Section 2.2.2
+- PIPELINE_HANDOFF_RULES: Section 5.7
+- SUBAGENT_WORKFLOW.md: полные примеры pipeline
+- PIPELINE_ORCHESTRATION.md: реализация auto-spawn
+
+---
+
+#### Handoff Contracts
+
+| Handoff | Инициатор | Что передаётся | Expected Output |
+|---------|-----------|----------------|-----------------|
+| **PM → ANALYST** | PM | task_description, UX_uncertainty, options_to_compare | ANALYST recommendation (A/B choice, UX decision) |
+| **PM → DEV** | PM | task_description, acceptance_criteria, context_files, ANALYST_output (если был) | DEV PLAN + READY_FOR_TEST: yes |
+| **DEV → TEST** | DEV (маркер) | READY_FOR_TEST: yes маркер + changed_files | TEST PASS/FAIL + policy_compliance check |
+| **TEST → PM** | TEST | PASS/FAIL статус, violations (если есть) | PM собирает OWNER_SUMMARY |
+| **PM → OWNER_SUMMARY** | PM | PM + DEV + TEST + ARCH результаты | Финальное сообщение пользователю |
+
+---
+
+#### PM → DEV Handoff
+
+**Контракт:**
+- PM передаёт: `task_description`, `acceptance_criteria`, `context_files`
+- Если был ANALYST: добавить `ANALYST_output`
+- Механизм: `sessions_spawn(task="<PM output>", model="qwen3-coder-plus")`
+
+**Пример:**
+```
+PM → DEV:
+"Задача: AG-019 — исправить таймер раунда
+Acceptance: таймер не отправляет сообщение после ручного завершения
+Контекст: app/services/round_timer_service.py"
+```
+
+---
+
+#### DEV → TEST Handoff
+
+**Контракт:**
+- DEV завершает ответ маркером: `READY_FOR_TEST: yes`
+- TEST спавнится автоматически (Section 5.7)
+- Fallback: 5 секунд → force spawn
+
+**Пример:**
+```
+DEV Output:
+CHANGES:
+- round_timer_service.py: added status check
+
+READY_FOR_TEST: yes
+```
+
+---
+
+#### TEST → PM Return
+
+**Контракт:**
+- TEST возвращает: `PASS/FAIL` + `violations` (если есть)
+- PM читает результат из session history
+- PM агрегирует в OWNER_SUMMARY
+
+**Пример:**
+```
+TEST Output:
+TEST_REPORT:
+- CODE_CHECK: ok
+- POLICY_CHECK: ok
+
+TEST_DECISION: PASS
+```
+
+---
+
+#### OWNER_SUMMARY Assembly
+
+**Кто собирает:** PM
+
+**Формат:** Section 3.5
+
+**Доставка:** Section 3.4 Delivery Matrix
+
+**Пример:**
+```markdown
+TASK_ID: AG-019
+STATUS: DONE
+SUMMARY: Исправлен таймер раунда
+DEV: round_timer_service.py (+8 lines)
+TEST: PASS
+DEPLOY: DEPLOYED
+```
+
+---
+
+### 2.7 SUBAGENT_RESULT_RETURN
+
+**Проблема:** Нет явного правила как результаты субагентов возвращаются в PM.
+
+**Решение:** Все субагенты возвращают результаты в PM для агрегации.
+
+---
+
+#### Правило
+
+**Все субагенты (ANALYST, DEV, ARCH, TEST):**
+- ✅ Возвращают результаты в parent session (где работает PM)
+- ✅ Используют `sessions_spawn` с `mode="run"` (результат в parent)
+- ✅ Не доставляют итог напрямую пользователю
+
+**PM:**
+- ✅ Читает результаты из session history
+- ✅ Агрегирует в OWNER_SUMMARY формат
+- ✅ Доставляет OWNER_SUMMARY пользователю
+
+---
+
+#### Запрещено
+
+| Паттерн | Почему |
+|---------|--------|
+| ❌ Субагенты напрямую в Telegram | PM = single exit point |
+| ❌ Пропускать PM при агрегации | Нет единого формата |
+| ❌ Несколько OWNER_SUMMARY | Дублирование, шум |
+
+---
+
+#### Механизм
+
+```
+1. PM spawns ANALYST/DEV/ARCH/TEST via sessions_spawn
+   ↓
+2. Subagent выполняет задачу
+   ↓
+3. Subagent результат → parent session (автоматически)
+   ↓
+4. PM читает результат из session history
+   ↓
+5. PM агрегирует все результаты в OWNER_SUMMARY
+   ↓
+6. PM доставляет OWNER_SUMMARY пользователю
+```
+
+---
+
 ## 3. INTERACTIVE DELIVERY RULE
 
 ### 3.1 Проблема
@@ -2414,4 +2573,4 @@ Canonical bootstrap:
 
 ---
 
-_Версия: 1.20 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE, MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE_
+_Версия: 1.21 | Создано: 2026-03-27 | Updated: PM_EXECUTION_GATE, EXECUTION_COMPLETION_RULE, DEPLOY_STATUS_RULE, MEMORY_WRITE_RULE, POST_TASK_SANITY_CHECK, PROJECT_DOC_UPDATE_SCOPE, LANGUAGE_OUTPUT_DISCIPLINE, TELEGRAM_PIN_BOOTSTRAP_NOTE, ORCHESTRATION_FLOW, SUBAGENT_RESULT_RETURN_
