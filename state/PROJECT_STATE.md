@@ -47,6 +47,9 @@
 - None (all P0/P1 tasks complete)
 
 ## Latest closures
+- **AG-008:** Judge output by round breakdown — DONE (2026-03-28)
+  - **Scope:** round1_comment / round2_comment display in final verdict + my_results
+  - **Files:** menu.py (_format_final_verdict, my_results)
 - **AG-009:** Feedback routing to owner — DONE (2026-03-28)
   - **Scope:** feedback_owner_user_id config, message forwarding handler
   - **Files updated:** app/config.py, app/bot/handlers/menu.py, state/TODO.md

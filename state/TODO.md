@@ -146,11 +146,14 @@
 ### AG-008
 - **Title:** Normalize judge output by round
 - **Type:** product
-- **Status:** TODO
+- **Status:** DONE
 - **Priority:** P1
+- **Closed:** 2026-03-28 (реализовано в сессии 2026-03-28)
 - **Why:** пользователю полезно понимать, что было сильным/слабым в каждом раунде отдельно
-- **Done_when:** в результате видно round1 / round2 breakdown
-- **Risks:** может затронуть prompts and formatting
+- **Done_when:** в результате видно round1 / round2 breakdown ✅
+- **Implementation:**
+  - `_format_final_verdict`: показывает round1_comment / round2_comment
+  - `my_results`: показывает round breakdown в истории
 - **RICE:**
   - **Reach:** 6
   - **Impact:** 8
