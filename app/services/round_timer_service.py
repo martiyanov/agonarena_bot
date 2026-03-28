@@ -84,6 +84,14 @@ class RoundTimerService:
                     await session.commit()
                     break
 
+            # Don't send timeout message if duel is already finished (e.g., user clicked "End Round" manually)
+            async with db_session.AsyncSessionLocal() as session:
+                duel_service = DuelService()
+                duel = await duel_service.get_duel(session, duel_id)
+                if duel is None or duel.status == "finished":
+                    logger.info("round timer: skipping timeout message for duel=%s (status=%s)", duel_id, duel.status if duel else "None")
+                    return
+
             if not settings.telegram_bot_token:
                 return
 
