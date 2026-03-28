@@ -53,20 +53,20 @@ PM → DEV → TEST → (ARCH при необходимости) → OWNER_SUMMA
 
 ### 2.3 TASK_ID_ASSIGNMENT_POLICY
 
-**Проблема:** Внешние агенты (ChatGPT, пользователь) предлагают ID задач (AG-XXX), но не знают текущее состояние TODO.md → риск конфликтов и дублей.
+**Проблема:** Внешние агенты (ChatGPT, пользователь) предлагают ID задач (AG-XXX), но не знают текущее состояние state/TODO.md → риск конфликтов и дублей.
 
 **Решение:** Генерация Task ID происходит ТОЛЬКО внутри системы.
 
 **Правило:**
 ```
 ❌ ЗАПРЕЩЕНО: Принимать Task ID от внешних источников
-✅ ОБЯЗАТЕЛЬНО: PM генерирует ID на основе TODO.md
+✅ ОБЯЗАТЕЛЬНО: PM генерирует ID на основе state/TODO.md
 ```
 
 **PM обязан:**
-1. Прочитать TODO.md перед началом задачи
+1. Прочитать state/TODO.md перед началом задачи
 2. Найти следующий свободный AG-XXX (max + 1)
-3. Записать новый ID в TODO.md
+3. Записать новый ID в state/TODO.md
 4. Вернуть ID в ответе пользователю
 
 **Внешние команды (от владельца):**
@@ -78,9 +78,9 @@ PM → DEV → TEST → (ARCH при необходимости) → OWNER_SUMMA
 ```
 User: "Нужно добавить кнопку обратной связи"
 PM: 
-  1. Читает TODO.md → последний AG-016
+  1. Читает state/TODO.md → последний AG-016
   2. Генерирует AG-017
-  3. Записывает в TODO.md
+  3. Записывает в state/TODO.md
   4. Отвечает: "✅ AG-017 добавлена: Кнопка обратной связи"
 ```
 
@@ -522,10 +522,10 @@ if (pmOutput.match(/[?]|выбери|уточни|подтверди/i)) {
 |----------|--------|
 | **AGENT_POLICY.md** | Зафиксированные правила разработки |
 | **SUBAGENT_WORKFLOW.md** | Pipeline и workflow правила |
-| **TODO.md** | Приоритеты задач (P0/P1/P2/P3) |
-| **PROJECT_STATE.md** | Текущее состояние проекта |
-| **ACCEPTANCE.md** | Протоколы приёмки |
-| **DEVLOG.md / PROMPTS.md** | Ранее зафиксированные user decisions |
+| **state/TODO.md** | Приоритеты задач (P0/P1/P2/P3) |
+| **state/PROJECT_STATE.md** | Текущее состояние проекта |
+| **product/ACCEPTANCE.md** | Протоколы приёмки |
+| **state/DEVLOG.md / PROMPTS.md** | Ранее зафиксированные user decisions |
 
 **PM задаёт вопрос ТОЛЬКО если:**
 
@@ -539,10 +539,10 @@ if (pmOutput.match(/[?]|выбери|уточни|подтверди/i)) {
 
 ```
 1. Сначала искать existing decision
-   → DEVLOG.md, PROMPTS.md, PROJECT_STATE.md
+   → state/DEVLOG.md, PROMPTS.md, state/PROJECT_STATE.md
    
 2. Потом искать policy
-   → AGENT_POLICY.md, TODO.md, ACCEPTANCE.md
+   → AGENT_POLICY.md, state/TODO.md, product/ACCEPTANCE.md
    
 3. Только потом спрашивать пользователя
    → Если нет policy и нет previous decision
@@ -552,11 +552,11 @@ if (pmOutput.match(/[?]|выбери|уточни|подтверди/i)) {
 ```typescript
 // Перед генерацией вопроса:
 const existingDecision = searchInFiles([
-  'DEVLOG.md',
+  'state/DEVLOG.md',
   'PROMPTS.md', 
-  'PROJECT_STATE.md',
+  'state/PROJECT_STATE.md',
   'AGENT_POLICY.md',
-  'TODO.md'
+  'state/TODO.md'
 ], questionTopic);
 
 if (existingDecision) {
@@ -578,7 +578,7 @@ if (existingDecision) {
 | Какой моделью делать код? | ❌ Нет | Policy: qwen3-coder-plus |
 | Какой вариант layout для AG-007? | ✅ Да | User preference, нет policy |
 | Нужно ли тестировать перед коммитом? | ❌ Нет | Policy: TEST обязателен |
-| Какой приоритет у задачи? | ❌ Нет | TODO.md: P0/P1/P2/P3 |
+| Какой приоритет у задачи? | ❌ Нет | state/TODO.md: P0/P1/P2/P3 |
 | Какой формат scenario picker? | ✅ Да | UX choice, пользователь решает |
 
 ---
@@ -624,7 +624,7 @@ NEXT_ACTIONS:
 
 **Проблема:** После завершения задачи пользователь должен вручную выбирать следующую → трата времени на контекст.
 
-**Решение:** PM автоматически предлагает следующую задачу на основе TODO.md и PROJECT_STATE.md.
+**Решение:** PM автоматически предлагает следующую задачу на основе state/TODO.md и state/PROJECT_STATE.md.
 
 ---
 
@@ -632,7 +632,7 @@ NEXT_ACTIONS:
 
 **После каждого OWNER_SUMMARY PM обязан:**
 
-1. Прочитать `TODO.md` и `PROJECT_STATE.md`
+1. Прочитать `state/TODO.md` и `state/PROJECT_STATE.md`
 2. Найти следующую задачу:
    - **P0** → если есть (highest priority)
    - **Иначе P1 с максимальным RICE score**
@@ -696,11 +696,11 @@ sessions_send({
 #### Task Selection Algorithm
 
 ```
-1. Есть ли P0 задачи в TODO.md?
+1. Есть ли P0 задачи в state/TODO.md?
    - YES → Выбрать P0 с highest RICE
    - NO → перейти к шагу 2
 
-2. Есть ли P1 задачи в TODO.md?
+2. Есть ли P1 задачи в state/TODO.md?
    - YES → Выбрать P1 с highest RICE
    - NO → перейти к шагу 3
 
@@ -742,7 +742,7 @@ sessions_send({
 **Scope:**
 - Commit: AG-005, AG-007, AG-011 changes
 - Push: origin/feature/menu-ux-refresh
-- Evidence: branch/hash в DEVLOG.md
+- Evidence: branch/hash в state/DEVLOG.md
 
 ❓ Запустить эту задачу? (yes/no)
 ```
@@ -836,7 +836,7 @@ sessions_send({
 
 ## 5.6 TASK_ID_SOURCE_OF_TRUTH
 
-**Проблема:** PM генерирует task_id (AG-XXX) без доступа к TODO.md → риск галлюцинаций.
+**Проблема:** PM генерирует task_id (AG-XXX) без доступа к state/TODO.md → риск галлюцинаций.
 
 **Решение:** Запретить генерацию новых ID. Использовать только существующие из файлов.
 
@@ -846,8 +846,8 @@ sessions_send({
 
 | Источник | Приоритет |
 |----------|-----------|
-| **TODO.md** | Основной (список задач) |
-| **PROJECT_STATE.md** | Дополнительный (контекст) |
+| **state/TODO.md** | Основной (список задач) |
+| **state/PROJECT_STATE.md** | Дополнительный (контекст) |
 
 ---
 
@@ -858,7 +858,7 @@ sessions_send({
 - Генерировать новые ID в NEXT TASK SUGGESTION
 
 **✅ ОБЯЗАТЕЛЬНО:**
-1. Прочитать TODO.md перед NEXT TASK SUGGESTION
+1. Прочитать state/TODO.md перед NEXT TASK SUGGESTION
 2. Найти следующую задачу в backlog
 3. Использовать реальный ID из файла
 
@@ -969,19 +969,19 @@ sessions_spawn({
 
 | Файл | Назначение |
 |------|------------|
-| `DEVLOG.md` | История решений и изменений |
+| `state/DEVLOG.md` | История решений и изменений |
 | `PROMPTS.md` | Архив промтов и результатов |
-| `TODO.md` | Backlog и статусы задач |
-| `PROJECT_STATE.md` | Текущее состояние проекта |
-| `ACCEPTANCE.md` | Протоколы ручной приёмки |
+| `state/TODO.md` | Backlog и статусы задач |
+| `state/PROJECT_STATE.md` | Текущее состояние проекта |
+| `product/ACCEPTANCE.md` | Протоколы ручной приёмки |
 
 ### Правила логирования
 
-- ✅ Каждая задача логируется в DEVLOG.md
+- ✅ Каждая задача логируется в state/DEVLOG.md
 - ✅ Каждая роль пишет свой этап
 - ✅ Промты сохраняются в PROMPTS.md
 - ✅ Сохраняется история решений
-- ✅ Статусы обновляются в TODO.md
+- ✅ Статусы обновляются в state/TODO.md
 
 ---
 
@@ -1046,8 +1046,8 @@ sessions_spawn({
 - ✅ Delivery: OK
 - ✅ Pipeline: no stalled handoffs
 - ✅ Task: AG-XXX → DONE
-- ✅ DEVLOG.md: обновлён
-- ✅ TODO.md: статус обновлён
+- ✅ state/DEVLOG.md: обновлён
+- ✅ state/TODO.md: статус обновлён
      ↓
 PUSH TO ORIGIN
 ```
@@ -1063,9 +1063,9 @@ PUSH TO ORIGIN
    ↓
 3. TEST PASS received
    ↓
-4. Update TODO.md (AG-XXX → DONE)
+4. Update state/TODO.md (AG-XXX → DONE)
    ↓
-5. Update DEVLOG.md (entry added)
+5. Update state/DEVLOG.md (entry added)
    ↓
 6. git add <files>
    ↓
@@ -1084,7 +1084,7 @@ PUSH TO ORIGIN
 ```
 1. git revert HEAD
 2. git push origin <branch>
-3. DEVLOG.md: добавить entry о revert
+3. state/DEVLOG.md: добавить entry о revert
 4. Исправить в новой задаче AG-XXX
 ```
 

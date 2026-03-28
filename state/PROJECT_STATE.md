@@ -63,7 +63,7 @@
 - runtime mismatch issue was found and resolved via local container redeploy
 - **AG-011 voice fix:** confirmed via `tests/test_voice_routing.py` 6/6 PASS
 - **AG-006 release:** committed & pushed (`c722b98` on `feature/menu-ux-refresh`)
-- **Acceptance protocol:** created `ACCEPTANCE.md` for reproducible manual testing
+- **Acceptance protocol:** created `product/ACCEPTANCE.md` for reproducible manual testing
 
 ## Token Efficiency Analysis (AG-015)
 
