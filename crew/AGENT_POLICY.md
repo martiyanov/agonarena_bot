@@ -1482,6 +1482,14 @@ Violation type: <тип нарушения>
 - DEVLOG записи
 - UX тексты (кнопки, подсказки)
 - Пользовательские уведомления
+- **Project markdown files:**
+  - PROJECT_CONTEXT_SUMMARY.md
+  - PROJECT_INDEX.md
+  - Все файлы в crew/
+  - Все файлы в state/
+  - Все файлы в product/
+  - Все файлы в architecture/
+  - Все файлы в docs/
 
 ---
 
@@ -2049,4 +2057,79 @@ git push origin --delete chore/project-structure-migration
 
 ---
 
-_Версия: 1.18 | Создано: 2026-03-27 | Updated: GIT_WORKFLOW_MODE (simplify to direct-main)_
+## 21. PROJECT_DOC_LANGUAGE_AND_CREW_PATH_RULE
+
+### PROJECT_DOC_LANGUAGE_RULE
+
+**Правило:** Все project markdown files писать на русском языке по умолчанию.
+
+**Область применения:**
+- PROJECT_CONTEXT_SUMMARY.md
+- PROJECT_INDEX.md
+- Все файлы в crew/
+- Все файлы в state/
+- Все файлы в product/
+- Все файлы в architecture/
+- Все файлы в docs/
+
+**Английский допустим только для:**
+- Кода и переменных
+- Имён файлов/путей/идентификаторов
+- Commit messages
+- Технических терминов без нормального русского аналога
+
+**Запрещено:**
+- ❌ Переписывать существующие русские markdown файлы на английский
+- ❌ Создавать новые project docs на английском без причины
+
+**Если существующий файл уже на русском:**
+→ Сохранять русский язык при редактировании
+→ Не переводить на английский без явной команды
+
+---
+
+### CANONICAL_CREW_PATH_RULE
+
+**Правило:** Canonical crew files live ONLY in crew/. Агент не должен создавать дубликаты в root.
+
+**Canonical paths:**
+| Файл | Canonical path |
+|------|----------------|
+| AGENTS.md | `crew/AGENTS.md` |
+| HEARTBEAT.md | `crew/HEARTBEAT.md` |
+| IDENTITY.md | `crew/IDENTITY.md` |
+| SOUL.md | `crew/SOUL.md` |
+| TOOLS.md | `crew/TOOLS.md` |
+| USER.md | `crew/USER.md` |
+
+**Запрещено:**
+- ❌ Создавать или восстанавливать эти файлы в repository root
+- ❌ Редактировать root-копии вместо canonical files
+- ❌ Считать root-файлы валидными альтернативами
+
+**Если в root появляются такие файлы:**
+→ Считать их stray duplicates
+→ Пометить как cleanup candidates
+→ Предложить удалить (trash/rm)
+→ При изменениях редактировать только canonical files в crew/
+
+**Исключения:**
+- Нет — эти файлы всегда должны быть в crew/
+
+---
+
+### INTEGRATION
+
+**PROJECT_DOC_LANGUAGE_RULE применяется:**
+- При создании новых markdown файлов
+- При редактировании существующих
+- При bootstrap сессии (PROJECT_CONTEXT_SUMMARY.md)
+
+**CANONICAL_CREW_PATH_RULE применяется:**
+- При старте сессии (не восстанавливать root-дубликаты)
+- При редактировании crew files
+- При cleanup working tree
+
+---
+
+_Версия: 1.19 | Создано: 2026-03-27 | Updated: PROJECT_DOC_LANGUAGE_AND_CREW_PATH_RULE_
