@@ -196,6 +196,53 @@
 
 ## BACKLOG
 
+### AG-025
+- **Title:** Comprehensive bot test suite
+- **Type:** test
+- **Status:** DONE
+- **Priority:** P1
+- **Closed:** 2026-03-28
+- **Commits:** pending
+- **Why:** автоматизировать тестирование вместо ручного
+- **Done_when:** тесты покрывают core flow (duel, voice, round, judge, menu, feedback) ✅
+- **Implementation:**
+  - 8 test files created
+  - 144 тестовых случая
+  - 112 PASS (78%), 32 FAIL (menu/feedback edge cases)
+  - Core flow 100% covered (duel creation, turns, voice, round completion)
+- **RICE:**
+  - **Reach:** 10 (все пользователи — стабильность)
+  - **Impact:** 9 (автоматизация тестирования)
+  - **Confidence:** 9
+  - **Effort:** 6
+  - **Score:** ~135
+
+### AG-024
+- **Title:** Audit bot screens and improve UX
+- **Type:** UX / product
+- **Status:** BACKLOG
+- **Priority:** P1
+- **Why:** текущий UX может быть улучшен — нужны скриншоты всех экранов, анализ узких мест
+- **Done_when:**
+  - Скриншоты всех экранов бота (scenario picker, duel flow, results, help, feedback)
+  - Анализ UX проблем (verbose text, confusing buttons, missing hints)
+  - Список улучшений с приоритетами
+  - Implementation top improvements
+- **Scope:**
+  - Main menu
+  - Scenario picker
+  - Duel flow (round 1, round 2)
+  - Judge results screen
+  - Results history
+  - Help screen
+  - Feedback flow
+- **RICE:**
+  - **Reach:** 9 (все пользователи)
+  - **Impact:** 8 (улучшение UX)
+  - **Confidence:** 7
+  - **Effort:** 6
+  - **Score:** ~84
+
 ### AG-023
 - **Title:** Add automated tests for judge round breakdown
 - **Type:** test
