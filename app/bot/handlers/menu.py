@@ -809,23 +809,14 @@ async def show_main_menu(message: Message) -> None:
         has_active_duel = duel and duel.status not in ("finished", "cancelled")
 
     # Build keyboard dynamically
-    keyboard = [
-        [InlineKeyboardButton(text=START_BUTTON, callback_data="start_duel")],
-    ]
-
-    if has_active_duel:
-        # Show duel-related buttons only when duel is active
-        keyboard.append([InlineKeyboardButton(text=END_ROUND_BUTTON, callback_data="end_round")])
-        keyboard.append([InlineKeyboardButton(text=RESULTS_BUTTON, callback_data="results")])
-    else:
-        # Show start-only buttons when no active duel
-        pass  # Just the start button
-
-    keyboard.append([InlineKeyboardButton(text=RULES_BUTTON, callback_data="rules")])
-    keyboard.append([InlineKeyboardButton(text=FEEDBACK_BUTTON, callback_data="feedback")])
-
-    markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
-    await message.answer("Выберите действие:", reply_markup=markup)
+    from app.bot.keyboards.main_menu import build_main_menu
+    markup = build_main_menu(has_active_duel=has_active_duel)
+    
+    await message.answer(
+        "<b>Выберите действие:</b>",
+        reply_markup=markup,
+        parse_mode="HTML",
+    )
 
 
 @router.message(F.text == "/start")
