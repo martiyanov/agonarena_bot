@@ -44,18 +44,20 @@
 6. Only after manual PASS -> commit and push to GitHub
 
 ## Current active task
-- **AG-006:** Commit and push validated release after manual PASS
-- **Status:** IN PROGRESS (post-AG-007 closure)
+- None (all P0/P1 tasks complete)
 
-## Latest closure
+## Latest closures
+- **AG-009:** Feedback routing to owner — DONE (2026-03-28)
+  - **Scope:** feedback_owner_user_id config, message forwarding handler
+  - **Files updated:** app/config.py, app/bot/handlers/menu.py, state/TODO.md
 - **AG-007:** Telegram acceptance PASS (2026-03-27) — scenario picker message layout improved
   - **UX_DECISION:** Variant B confirmed — цифры без emoji
   - **Scope:** delivery policy fixed, Docker implementation applied, user acceptance confirmed
   - **Files updated:** TODO.md, PROJECT_STATE.md
 
 ## Next real step
-- Complete AG-006 release commit and push to GitHub
-- Blockers: None (AG-007 closed successfully)
+- Backlog: AG-008 (judge round breakdown), AG-015 (token analysis), AG-012/013/014 (backlog)
+- Blockers: None
 
 ## Notes
 - duel-flow tests subtask is complete

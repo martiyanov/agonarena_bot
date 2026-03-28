@@ -161,8 +161,11 @@
 ### AG-009
 - **Title:** Route `Обратная связь` в служебный канал/личку владельца
 - **Type:** ops
-- **Status:** TODO
+- **Status:** DONE
 - **Priority:** P1
+- **Closed:** 2026-03-28
+- **Commits:** ceb99f0
+- **Branch:** main → pushed
 - **Why:** отзывы не должны теряться в группах
 - **Done_when:** feedback reliably delivered to owner channel
 - **Risks:** external delivery and privacy mistakes
