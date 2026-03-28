@@ -19,8 +19,25 @@ async def cmd_start(message: Message) -> None:
         )
         has_active_duel = duel and duel.status not in ("finished", "cancelled")
     
+    if has_active_duel:
+        # Text for in_duel state
+        menu_text = (
+            "Поединок уже идёт.\n\n"
+            "Продолжайте отвечать текстом или голосом.\n"
+            "Когда раунд завершён, нажмите «🏁 Завершить раунд»."
+        )
+    else:
+        # Text for idle state
+        menu_text = (
+            "Добро пожаловать в Agon Arena.\n\n"
+            "Здесь можно тренировать управленческие поединки:\n"
+            "— 2 раунда\n"
+            "— смена ролей\n"
+            "— разбор от 3 судей\n\n"
+            "Выберите сценарий или начните случайный поединок."
+        )
+    
     await message.answer(
-        "**Agon Arena**\n\nТренажёр управленческих поединков.\n\n• 2 раунда\n• смена ролей во втором раунде\n• 3 судьи с итоговым разбором\n\nВыберите действие в меню ниже.",
+        menu_text,
         reply_markup=build_main_menu(has_active_duel=has_active_duel),
-        parse_mode="Markdown",
     )

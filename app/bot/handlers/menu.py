@@ -29,8 +29,8 @@ from app.services.round_timer_service import round_timer_service
 
 router = Router()
 
-START_BUTTON = "🎯 Выбрать сценарий"
-RANDOM_SCENARIO_BUTTON = "🎲 Случайный сценарий"
+START_BUTTON = "🎯 Сценарии"
+RANDOM_SCENARIO_BUTTON = "🎲 Случайный"
 START_BUTTON_LEGACY = "⚔️ Начать поединок"
 CUSTOM_SCENARIO_BUTTON = "🎭 Свой сценарий"
 SCENARIOS_BUTTON = "📚 Сценарии"
@@ -48,8 +48,7 @@ NEXT_ROUND_BUTTON = "⏭️ Раунд 2"
 NEXT_ROUND_BUTTON_LEGACY = "⏭️ Следующий раунд"
 FINISH_BUTTON = "🏁 Завершить"
 FINISH_BUTTON_LEGACY = "🏁 Завершить поединок"
-FEEDBACK_BUTTON = "💬 Обратная связь"
-CANCEL_FEEDBACK_BUTTON = "❌ Отмена"
+FEEDBACK_BUTTON = "💬 Отзыв"
 
 MENU_TEXTS = {
     START_BUTTON,
@@ -71,7 +70,6 @@ MENU_TEXTS = {
     FINISH_BUTTON,
     FINISH_BUTTON_LEGACY,
     FEEDBACK_BUTTON,
-    CANCEL_FEEDBACK_BUTTON,
 }
 
 # Пользовательские сценарии: после нажатия кнопки ждём одно следующее сообщение
@@ -121,40 +119,73 @@ async def _send_scenario_picker(message: Message) -> None:
         await message.answer("Сценариев пока нет. Добавьте их в базу и попробуйте снова.")
         return
 
-    # Подготовим список сценариев для отображения
+    # Pagination: 5 scenarios per page
+    PAGE_SIZE = 5
+    page = 1  # Default to first page
+    
+    # Calculate total pages
+    total_pages = (len(scenarios) + PAGE_SIZE - 1) // PAGE_SIZE
+    
+    # Get scenarios for current page
+    start_idx = (page - 1) * PAGE_SIZE
+    end_idx = start_idx + PAGE_SIZE
+    page_scenarios = scenarios[start_idx:end_idx]
+    
+    # Format scenario list for display
     scenario_lines = []
-    for i, item in enumerate(scenarios[:10], 1):
+    for i, item in enumerate(page_scenarios, start_idx + 1):
         roles_line = f"{escape(item.role_a_name)} ↔ {escape(item.role_b_name)}"
         difficulty = f" | {item.difficulty}" if item.difficulty else ""
         scenario_lines.append(f"{i}. {escape(item.title)}\n{roles_line}{difficulty}")
 
-    # Формируем сообщение со списком сценариев
+    # Form message with scenario list
     scenarios_text = "\n\n".join(scenario_lines)
     
-    # Создаем компактную клавиатуру: 2 ряда по 5 кнопок (цифры 1-10) + "🎲 Случайный"
+    # Create compact keyboard: 5 scenario buttons + navigation + random + custom
     keyboard_rows = []
-    # Первые 5 кнопок (1-5)
-    row1 = []
-    for i in range(1, min(len(scenarios)+1, 6)):
-        row1.append(InlineKeyboardButton(text=str(i), callback_data=f"pick_scenario:{i}"))
-    if row1:
-        keyboard_rows.append(row1)
     
-    # Вторые 5 кнопок (6-10)
-    row2 = []
-    for i in range(6, min(len(scenarios)+1, 11)):
-        row2.append(InlineKeyboardButton(text=str(i), callback_data=f"pick_scenario:{i}"))
-    if row2:
-        keyboard_rows.append(row2)
+    # First 5 scenario buttons (short names)
+    scenario_buttons = []
+    for i, scenario in enumerate(page_scenarios, start_idx + 1):
+        # Extract short name for button (first word or up to 10 chars)
+        short_name = scenario.title.split()[0] if scenario.title.split() else scenario.title
+        if len(short_name) > 10:
+            short_name = short_name[:10] + ".."
+        scenario_buttons.append(InlineKeyboardButton(text=f"[{i}. {short_name}]", callback_data=f"pick_scenario:{i}"))
     
-    # Добавляем кнопку "🎲 Случайный"
-    random_button_row = [InlineKeyboardButton(text="🎲 Случайный", callback_data="pick_scenario:random")]
-    keyboard_rows.append(random_button_row)
+    # Add scenario buttons in rows of 5
+    for i in range(0, len(scenario_buttons), 5):
+        keyboard_rows.append(scenario_buttons[i:i+5])
+    
+    # Navigation buttons: ← | 1/2 | →
+    nav_buttons = []
+    if page > 1:
+        nav_buttons.append(InlineKeyboardButton(text="←", callback_data=f"scenarios_page:{page-1}"))
+    
+    nav_buttons.append(InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data=f"scenarios_page:{page}"))
+    
+    if page < total_pages:
+        nav_buttons.append(InlineKeyboardButton(text="→", callback_data=f"scenarios_page:{page+1}"))
+    
+    keyboard_rows.append(nav_buttons)
+    
+    # Bottom row: 🎲 Случайный, 🎭 Свой сценарий
+    bottom_buttons = [
+        InlineKeyboardButton(text="🎲 Случайный", callback_data="pick_scenario:random"),
+        InlineKeyboardButton(text="🎭 Свой сценарий", callback_data="custom_scenario")
+    ]
+    keyboard_rows.append(bottom_buttons)
     
     markup = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
     
+    # Page title based on page number
+    if page == 1:
+        page_title = "🎯 Выберите сценарий\n\n"
+    else:
+        page_title = f"Страница {page}\n\n"
+    
     await message.answer(
-        f"<b>Выберите готовый сценарий для поединка</b>\n\n{scenarios_text}", 
+        f"{page_title}{scenarios_text}\n\n", 
         parse_mode="HTML", 
         reply_markup=markup
     )
@@ -182,26 +213,26 @@ async def _start_duel(message: Message, scenario_code: Union[str, None] = None) 
         rounds = await duel_service.get_duel_rounds(session, duel.id)
 
     round_1 = rounds[0]
-    # Message 1: Setup info (compact)
-    setup_text = "\n".join([
-        f"<b>Поединок #{duel.id}</b>",
+    # Single message with all duel start information
+    start_text = "\n".join([
+        "🏁 <b>Поединок начался</b>",
         f"Сценарий: {escape(scenario.title)}",
-        f"Вы: {escape(round_1.user_role)} ↔ Соперник: {escape(round_1.ai_role)}",
-        f"⏱ На раунд: {duel.turn_time_limit_sec // 60} мин",
-    ])
-    await message.answer(setup_text, parse_mode="HTML")
-
-    # Message 2: Opening line (separate, prominent)
-    opening_text = "\n".join([
-        "<b>Первая реплика соперника (AI)</b>",
-        f"{escape(round_1.opening_line)}",
+        f"Раунд 1 из 2",
         "",
-        "<b>Что дальше</b>",
-        "1. Ответьте текстом или голосом от лица вашей роли.",
-        "2. Дождитесь ответа соперника.",
-        f"3. Нажмите «{END_ROUND_BUTTON}» когда раунд завершён.",
+        f"Вы — {escape(round_1.user_role)}",
+        f"Соперник — {escape(round_1.ai_role)}",
+        "",
+        "Первая реплика соперника:",
+        f'"{escape(round_1.opening_line)}"',
+        "",
+        "Ответьте текстом или голосом от своей роли.",
     ])
-    await message.answer(opening_text, parse_mode="HTML")
+    
+    # Use the in_duel keyboard for the newly started duel
+    from app.bot.keyboards.main_menu import build_main_menu
+    markup = build_main_menu(has_active_duel=True)
+    
+    await message.answer(start_text, parse_mode="HTML", reply_markup=markup)
 
 
 async def _build_custom_scenario_from_text(raw_text: str) -> dict:
@@ -417,20 +448,47 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
         )
         await session.commit()
 
-    timer_line = f"⏱ До конца раунда: {seconds_left or 0} сек."
+    # Removed timer from turn messages according to UX requirements
+    # Keep track of seconds_left for potential use in other parts of the function
+    # but don't include it in the response message
 
     if recognized_from_voice:
         await message.answer(
-            "<b>Ваша реплика</b>\n"
-            f"{escape(clean_text)}\n\n"
-            "<b>Ответ соперника</b>\n"
-            f"{escape(ai_reply)}\n\n"
-            f"{escape(timer_line)}",
+            "<b>Раунд {round_number}</b>\n\n"
+            "Вы — {user_role}:\n"
+            '"{user_text}"\n\n'
+            "Соперник — {ai_role}:\n"
+            '"{ai_reply}"\n\n'
+            "Продолжайте раунд:\n"
+            "— ответьте текстом или голосом\n"
+            "— либо нажмите «🏁 Завершить раунд»".format(
+                round_number=round_obj.round_number,
+                user_role=escape(round_obj.user_role),
+                user_text=escape(clean_text),
+                ai_role=escape(round_obj.ai_role),
+                ai_reply=escape(ai_reply)
+            ),
             parse_mode="HTML",
         )
         return
 
-    await message.answer(f"{ai_reply}\n\n{timer_line}")
+    await message.answer(
+        "<b>Раунд {round_number}</b>\n\n"
+        "Вы — {user_role}:\n"
+        '"{user_text}"\n\n'
+        "Соперник — {ai_role}:\n"
+        '"{ai_reply}"\n\n'
+        "Продолжайте раунд:\n"
+        "— ответьте текстом или голосом\n"
+        "— либо нажмите «🏁 Завершить раунд»".format(
+            round_number=round_obj.round_number,
+            user_role=escape(round_obj.user_role),
+            user_text=escape(clean_text),
+            ai_role=escape(round_obj.ai_role),
+            ai_reply=escape(ai_reply)
+        ),
+        parse_mode="HTML",
+    )
 
 
 async def _send_feedback_to_owner(message: Message, feedback_text: str) -> None:
@@ -532,21 +590,114 @@ async def start_duel_from_pick_scenario(callback: CallbackQuery) -> None:
     # Если выбран номер сценария
     try:
         scenario_number = int(scenario_selector)
-        if 1 <= scenario_number <= 10:
-            # Получаем список активных сценариев
-            async with db_session.AsyncSessionLocal() as session:
-                scenarios = await ScenarioService().list_active(session)
-                
-                # Проверяем, что номер сценария в пределах доступного количества
-                if scenario_number <= len(scenarios):
-                    selected_scenario = scenarios[scenario_number - 1]
-                    await _start_duel(callback.message, scenario_code=selected_scenario.code)
-                else:
-                    await callback.message.answer("Выбранный сценарий больше не доступен.")
-        else:
-            await callback.message.answer("Неверный номер сценария.")
+        # Получаем список активных сценариев
+        async with db_session.AsyncSessionLocal() as session:
+            scenarios = await ScenarioService().list_active(session)
+            
+            # Проверяем, что номер сценария в пределах доступного количества
+            if 1 <= scenario_number <= len(scenarios):
+                selected_scenario = scenarios[scenario_number - 1]
+                await _start_duel(callback.message, scenario_code=selected_scenario.code)
+            else:
+                await callback.message.answer("Выбранный сценарий больше не доступен.")
     except ValueError:
         await callback.message.answer("Ошибка при выборе сценария.")
+
+
+@router.callback_query(F.data.startswith("scenarios_page:"))
+async def show_scenarios_page(callback: CallbackQuery) -> None:
+    try:
+        page_num = int(callback.data.split(":", 1)[1])
+        await callback.answer(text="OK")
+        
+        async with db_session.AsyncSessionLocal() as session:
+            scenarios = await ScenarioService().list_active(session)
+
+        if not scenarios:
+            await callback.message.edit_text("Сценариев пока нет. Добавьте их в базу и попробуйте снова.")
+            return
+
+        # Pagination: 5 scenarios per page
+        PAGE_SIZE = 5
+        total_pages = (len(scenarios) + PAGE_SIZE - 1) // PAGE_SIZE
+        
+        # Ensure page number is valid
+        if page_num < 1:
+            page_num = 1
+        elif page_num > total_pages:
+            page_num = total_pages
+            
+        # Get scenarios for current page
+        start_idx = (page_num - 1) * PAGE_SIZE
+        end_idx = start_idx + PAGE_SIZE
+        page_scenarios = scenarios[start_idx:end_idx]
+        
+        # Format scenario list for display
+        scenario_lines = []
+        for i, item in enumerate(page_scenarios, start_idx + 1):
+            roles_line = f"{escape(item.role_a_name)} ↔ {escape(item.role_b_name)}"
+            difficulty = f" | {item.difficulty}" if item.difficulty else ""
+            scenario_lines.append(f"{i}. {escape(item.title)}\n{roles_line}{difficulty}")
+
+        # Form message with scenario list
+        scenarios_text = "\n\n".join(scenario_lines)
+        
+        # Create compact keyboard: 5 scenario buttons + navigation + random + custom
+        keyboard_rows = []
+        
+        # First 5 scenario buttons (short names)
+        scenario_buttons = []
+        for i, scenario in enumerate(page_scenarios, start_idx + 1):
+            # Extract short name for button (first word or up to 10 chars)
+            short_name = scenario.title.split()[0] if scenario.title.split() else scenario.title
+            if len(short_name) > 10:
+                short_name = short_name[:10] + ".."
+            scenario_buttons.append(InlineKeyboardButton(text=f"[{i}. {short_name}]", callback_data=f"pick_scenario:{i}"))
+        
+        # Add scenario buttons in rows of 5
+        for i in range(0, len(scenario_buttons), 5):
+            keyboard_rows.append(scenario_buttons[i:i+5])
+        
+        # Navigation buttons: ← | 1/2 | →
+        nav_buttons = []
+        if page_num > 1:
+            nav_buttons.append(InlineKeyboardButton(text="←", callback_data=f"scenarios_page:{page_num-1}"))
+        
+        nav_buttons.append(InlineKeyboardButton(text=f"{page_num}/{total_pages}", callback_data=f"scenarios_page:{page_num}"))
+        
+        if page_num < total_pages:
+            nav_buttons.append(InlineKeyboardButton(text="→", callback_data=f"scenarios_page:{page_num+1}"))
+        
+        keyboard_rows.append(nav_buttons)
+        
+        # Bottom row: 🎲 Случайный, 🎭 Свой сценарий
+        bottom_buttons = [
+            InlineKeyboardButton(text="🎲 Случайный", callback_data="pick_scenario:random"),
+            InlineKeyboardButton(text="🎭 Свой сценарий", callback_data="custom_scenario")
+        ]
+        keyboard_rows.append(bottom_buttons)
+        
+        markup = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
+        
+        # Page title based on page number
+        if page_num == 1:
+            page_title = "🎯 Выберите сценарий\n\n"
+        else:
+            page_title = f"Страница {page_num}\n\n"
+        
+        await callback.message.edit_text(
+            f"{page_title}{scenarios_text}\n\n", 
+            parse_mode="HTML", 
+            reply_markup=markup
+        )
+    except ValueError:
+        await callback.message.answer("Ошибка при переключении страницы.")
+
+
+@router.callback_query(F.data == "custom_scenario")
+async def start_custom_scenario_from_picker(callback: CallbackQuery) -> None:
+    await callback.answer(text="OK")
+    await start_custom_scenario_prompt(callback.message)
 
 
 @router.message(F.text == RANDOM_SCENARIO_BUTTON)
@@ -737,42 +888,19 @@ async def start_feedback_flow(callback: CallbackQuery) -> None:
 async def _start_feedback(target_message: Message) -> None:
     FEEDBACK_REQUEST_USERS.add(target_message.from_user.id)
     
-    # Show message with cancel button
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=CANCEL_FEEDBACK_BUTTON, callback_data="cancel_feedback")],
-    ])
-    
     await target_message.answer(
-        "💬 Напишите ваше сообщение для обратной связи. "
-        "Я перешлю его владельцу бота.\n\n"
-        "Нажмите «❌ Отмена» если передумали.",
-        reply_markup=keyboard,
+        "💬 Напишите сообщение для обратной связи.\n\n"
+        "Чтобы выйти, просто выберите другой пункт меню.",
     )
 
 
-@router.message(F.text == CANCEL_FEEDBACK_BUTTON)
-@router.callback_query(F.data == "cancel_feedback")
-async def cancel_feedback(update: Union[Message, CallbackQuery]) -> None:
-    # Handle both message and callback query
-    if isinstance(update, CallbackQuery):
-        user_id = update.from_user.id
-        await update.answer(text="OK")
-        message = update.message
-    else:
-        user_id = update.from_user.id
-        message = update
-
-    FEEDBACK_REQUEST_USERS.discard(user_id)
-    await message.answer("❌ Обратная связь отменена.")
-
-
-@router.message(lambda msg: msg.from_user.id in FEEDBACK_REQUEST_USERS and msg.text != CANCEL_FEEDBACK_BUTTON)
+@router.message(lambda msg: msg.from_user.id in FEEDBACK_REQUEST_USERS)
 async def handle_feedback_message(message: Message) -> None:
     feedback_text = message.text.strip()
     
     # Validate non-empty
     if not feedback_text:
-        await message.answer("Пустое сообщение. Напишите что-нибудь или нажмите «❌ Отмена».")
+        await message.answer("Пустое сообщение. Напишите что-нибудь или просто выберите другой пункт меню.")
         return
     
     FEEDBACK_REQUEST_USERS.discard(message.from_user.id)
@@ -786,7 +914,7 @@ async def handle_feedback_message(message: Message) -> None:
             try:
                 owner_text = f"📨 Новая обратная связь\n\nОт: @{message.from_user.username or message.from_user.id}\n\n{feedback_text}"
                 await bot.send_message(chat_id=settings.feedback_owner_user_id, text=owner_text)
-                await message.answer("✅ Спасибо! Сообщение отправлено владельцу.")
+                await message.answer("✅ Спасибо. Сообщение отправлено.")
             finally:
                 await bot.session.close()
         else:
@@ -812,10 +940,27 @@ async def show_main_menu(message: Message) -> None:
     from app.bot.keyboards.main_menu import build_main_menu
     markup = build_main_menu(has_active_duel=has_active_duel)
     
+    if has_active_duel:
+        # Text for in_duel state
+        menu_text = (
+            "Поединок уже идёт.\n\n"
+            "Продолжайте отвечать текстом или голосом.\n"
+            "Когда раунд завершён, нажмите «🏁 Завершить раунд»."
+        )
+    else:
+        # Text for idle state
+        menu_text = (
+            "Добро пожаловать в Agon Arena.\n\n"
+            "Здесь можно тренировать управленческие поединки:\n"
+            "— 2 раунда\n"
+            "— смена ролей\n"
+            "— разбор от 3 судей\n\n"
+            "Выберите сценарий или начните случайный поединок."
+        )
+    
     await message.answer(
-        "<b>Выберите действие:</b>",
+        menu_text,
         reply_markup=markup,
-        parse_mode="HTML",
     )
 
 
@@ -863,9 +1008,13 @@ async def process_voice_turn(message: Message) -> None:
 
     temp_path: Union[Path, None] = None
     try:
-        await message.answer("Голосовое получил. Распознаю…")
+        # Show processing status immediately after receiving voice
+        processing_msg = await message.answer("🎤 Голосовое получено. Распознаю речь…")
         temp_path = await _download_telegram_file(message)
         transcript = await transcription_service.transcribe(temp_path, language="ru")
+        
+        # After STT is done, show success message
+        await message.answer("🤖 Ответ готов")
     except Exception:
         await message.answer("Не удалось распознать голосовое. Попробуйте ещё раз или отправьте текст.")
         return
@@ -882,7 +1031,7 @@ async def process_voice_turn(message: Message) -> None:
 
     if has_active_duel:
         # Голосовое в активном duel → продолжаем текущий раунд
-        # Игнорируем PENDING_CUSTOM_SCENARIO_USERS полностью
+        # Игнорируем PENDING_CUSTOM_SCENARIO_USERS completely
         await _run_turn(message, transcript, recognized_from_voice=True)
         return
 
@@ -904,11 +1053,15 @@ async def process_audio_turn(message: Message) -> None:
 
     temp_path: Union[Path, None] = None
     try:
-        await message.answer("Аудио получил. Распознаю…")
+        # Show processing status immediately after receiving audio
+        await message.answer("🎤 Голосовое получено. Распознаю речь…")
         temp_path = await _download_telegram_file(message)
         transcript = await transcription_service.transcribe(temp_path, language="ru")
+        
+        # After STT is done, show success message
+        await message.answer("🤖 Ответ готов")
     except Exception:
-        await message.answer("Не удалось распознать аудио. Попробуйте ещё раз или отправьте текст.")
+        await message.answer("Не удалось распознать голосовое. Попробуйте ещё раз или отправьте текст.")
         return
     finally:
         if temp_path and temp_path.exists():
@@ -923,7 +1076,7 @@ async def process_audio_turn(message: Message) -> None:
 
     if has_active_duel:
         # Аудио в активном duel → продолжаем текущий раунд
-        # Игнорируем PENDING_CUSTOM_SCENARIO_USERS полностью
+        # Игнорируем PENDING_CUSTOM_SCENARIO_USERS completely
         await _run_turn(message, transcript, recognized_from_voice=True)
         return
 
