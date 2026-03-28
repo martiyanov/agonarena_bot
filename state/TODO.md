@@ -246,10 +246,18 @@
 ### AG-013
 - **Title:** Improve scoring rubric for judges
 - **Type:** quality
-- **Status:** BACKLOG
+- **Status:** DONE
 - **Priority:** P2
+- **Closed:** 2026-03-28
+- **Commits:** pending
 - **Why:** текущий output полезен, но ещё можно сделать его более последовательным
-- **Done_when:** judge verdicts более стабильны и объяснимы
+- **Done_when:** judge verdicts более стабильны и объяснимы ✅
+- **Implementation:**
+  - 5-балльная шкала оценки для каждого раунда
+  - Явные критерии для каждого judge type (owner/team/sender)
+  - Decision rules с порогами для winner determination
+  - Few-shot примеры для consistency
+- **Files:** app/prompts/judges.md
 - **Risks:** prompt churn without clear product gain
 - **RICE:**
   - **Reach:** 5
