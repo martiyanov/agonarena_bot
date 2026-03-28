@@ -85,7 +85,7 @@ nohup python3 scripts/auto_test_spawner.py > orchestration.log 2>&1 &
 ```
 DEV Output: 
 - Made changes to files
-- Updated TODO.md
+- Updated state/TODO.md
 - READY_FOR_TEST: yes
 ```
 → Автоматический спавн TEST субагента
@@ -94,7 +94,7 @@ DEV Output:
 ```
 DEV Output:
 - Made changes to files  
-- Updated TODO.md
+- Updated state/TODO.md
 - [no READY_FOR_TEST marker detected due to parsing issue]
 ```
 → Через 5 секунд принудительный спавн TEST субагента

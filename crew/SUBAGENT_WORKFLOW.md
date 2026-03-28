@@ -419,7 +419,7 @@ PM → DEV → [READY_FOR_TEST: yes] → [auto spawn TEST] → TEST → OWNER_SU
 
 **Статус:** Пока только analysis. Никакие оптимизации не применяются.
 
-**Задача:** Добавлена в TODO.md (AG-015, P1, RICE: 94.5)
+**Задача:** Добавлена в state/TODO.md (AG-015, P1, RICE: 94.5)
 
 ---
 
