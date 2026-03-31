@@ -117,6 +117,17 @@ def _format_final_verdict(judge_service: JudgeService, verdicts: list, final_ver
 _SCENARIO_PICKER_MESSAGE_IDS: dict[int, int] = {}
 
 
+async def cleanup_scenario_messages(user_id: int, message: Message) -> None:
+    """Delete all old scenario picker messages for this user."""
+    prev_message_id = _SCENARIO_PICKER_MESSAGE_IDS.pop(user_id, None)
+    if prev_message_id:
+        try:
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=prev_message_id)
+        except Exception:
+            # Message might already be deleted or too old to delete
+            pass
+
+
 async def _send_scenario_picker(message: Message, user_id: int | None = None) -> None:
     """Send scenario picker, deleting any previous picker message for this user."""
     target_user_id = user_id or message.from_user.id
@@ -214,6 +225,9 @@ async def show_scenarios(message: Message) -> None:
 
 async def _start_duel(message: Message, scenario_code: Union[str, None] = None) -> None:
     user_id = message.from_user.id
+    
+    # Clean up old scenario picker messages
+    await cleanup_scenario_messages(user_id, message)
     
     # Acquire per-user lock to prevent double duel creation
     if not await duel_lock_manager.acquire_user_lock(user_id, timeout=30.0):
@@ -923,6 +937,11 @@ async def reset_and_new_callback(callback: CallbackQuery) -> None:
     """Handle reset and new duel button"""
     await callback.answer(text="🗑 Сбрасываю")
     
+    user_id = callback.from_user.id
+    
+    # Clean up old scenario picker messages
+    await cleanup_scenario_messages(user_id, callback.message)
+    
     async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
         duel = await duel_service.get_latest_duel_for_user(
@@ -1327,6 +1346,11 @@ async def show_main_menu(message: Message) -> None:
 @router.message(F.text == "/start")
 @router.message(F.text == "Меню")
 async def handle_start_command(message: Message) -> None:
+    user_id = message.from_user.id
+    
+    # Clean up old scenario picker messages
+    await cleanup_scenario_messages(user_id, message)
+    
     # Check for active duel and show options
     async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
