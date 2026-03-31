@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.types import Message
@@ -7,6 +9,20 @@ from app.db import session as db_session
 from app.services.duel_service import DuelService
 
 router = Router()
+
+
+def _get_version() -> str:
+    """Get version from VERSION file or git."""
+    # Try multiple paths for different environments
+    paths = [
+        Path("/app/VERSION"),  # Docker container
+        Path(__file__).parent.parent.parent.parent / "VERSION",  # Development
+        Path.cwd() / "VERSION",  # Current directory
+    ]
+    for version_file in paths:
+        if version_file.exists():
+            return version_file.read_text().strip()
+    return "unknown"
 
 
 @router.message(CommandStart())
@@ -19,6 +35,9 @@ async def cmd_start(message: Message) -> None:
         )
         has_active_duel = duel and duel.status not in ("finished", "cancelled")
     
+    version = _get_version()
+    version_line = f"\n\n🤖 Agon Arena v{version}"
+
     if has_active_duel:
         # Text for in_duel state
         menu_text = (
@@ -37,6 +56,8 @@ async def cmd_start(message: Message) -> None:
             "Выберите сценарий или начните случайный поединок."
         )
     
+    menu_text += version_line
+
     await message.answer(
         menu_text,
         reply_markup=build_main_menu(has_active_duel=has_active_duel),
