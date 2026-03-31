@@ -576,8 +576,18 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
 
     user_id = message.from_user.id
     
-    # First, get the duel to acquire per-duel lock
-    async with db_session.AsyncSessionLocal() as session:
+    # Acquire per-user lock FIRST to prevent race conditions between getting duel_id and acquiring duel lock
+    if not await duel_lock_manager.acquire_user_lock(user_id, timeout=5.0):
+        await message.answer(
+            "⚠️ <b>Подождите</b>\n\n"
+            "Предыдущий ход всё ещё обрабатывается. Попробуйте через несколько секунд.",
+            parse_mode="HTML"
+        )
+        return
+    
+    try:
+        # First, get the duel to acquire per-duel lock
+        async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
         duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=user_id)
         if duel is None:
@@ -671,6 +681,7 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
             await session.commit()
     finally:
         duel_lock_manager.release_duel_lock(duel_id)
+        duel_lock_manager.release_user_lock(user_id)
 
     # Removed timer from turn messages according to UX requirements
     # Keep track of seconds_left for potential use in other parts of the function
