@@ -47,20 +47,23 @@
 - None (all P0/P1 tasks complete)
 
 ## Latest closures
-- **AG-013:** Judge scoring rubric improved — DONE (2026-03-28)
-  - **Scope:** 5-point scale, explicit criteria per judge, decision rules, few-shot examples
-  - **Files:** app/prompts/judges.md
-  - **Deploy:** Container restarted, new prompt active
-- **AG-008:** Judge output by round breakdown — DONE (2026-03-28)
-  - **Scope:** round1_comment / round2_comment display in final verdict + my_results
-  - **Files:** menu.py (_format_final_verdict, my_results)
-- **AG-009:** Feedback routing to owner — DONE (2026-03-28)
-  - **Scope:** feedback_owner_user_id config, message forwarding handler
-  - **Files updated:** app/config.py, app/bot/handlers/menu.py, state/TODO.md
-- **AG-007:** Telegram acceptance PASS (2026-03-27) — scenario picker message layout improved
-  - **UX_DECISION:** Variant B confirmed — цифры без emoji
-  - **Scope:** delivery policy fixed, Docker implementation applied, user acceptance confirmed
-  - **Files updated:** TODO.md, PROJECT_STATE.md
+- **AG-006:** Commit and push validated release — DONE (2026-03-31)
+  - **Commit:** aa6f170 — "feat: inline round button + pipeline improvements"
+  - **Tests:** 22/22 PASS + 4/4 E2E PASS
+  - **Deploy:** Production DEPLOYED ✅
+- **AG-010:** Clean project git diff — DONE (2026-03-31)
+  - **Result:** 9 файлов закоммичено, мусор исключён
+- **AG-017:** Inline-кнопка "Завершить раунд" — DONE (2026-03-29)
+  - **Scope:** Inline кнопка в сообщениях дуэли, 6 состояний Duel.status
+  - **Tests:** 22/22 PASS
+- **AG-018:** Исправить callback ошибку — DONE (2026-03-29)
+  - **Scope:** Фикс callback_data формата для inline кнопки
+- **AG-019:** Убрать дублирование "🎲 Случайный" — DONE (2026-03-29)
+  - **Scope:** Кнопка только в пикере, убрана из меню
+- **AG-020:** Объединить два сообщения при дуэли — DONE (2026-03-29)
+  - **Scope:** Одно сообщение с inline кнопкой вместо двух
+- **AG-021:** Улучшить форматирование "Поединок начался" — DONE (2026-03-29)
+  - **Scope:** Чёткое разделение блоков информации
 
 ## Next real step
 - Backlog: AG-008 (judge round breakdown), AG-015 (token analysis), AG-012/013/014 (backlog)

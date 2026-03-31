@@ -138,14 +138,19 @@
 
 ## NEXT TOP 5
 
-### AG-006
+### AG-006 ✅ DONE (2026-03-31)
 - **Title:** Commit and push validated release after manual PASS
 - **Type:** release
-- **Status:** TODO
+- **Status:** DONE
 - **Priority:** P0
+- **Closed:** 2026-03-31
 - **Why:** по local policy задача полностью завершается только после release + push
-- **Done_when:** есть commit, push, evidence по branch/hash
-- **Risks:** случайно включить мусорный diff
+- **Done_when:** есть commit, push, evidence по branch/hash ✅
+- **Result:**
+  - Commit: aa6f170 — "feat: inline round button + pipeline improvements"
+  - Branch: main
+  - Production: DEPLOYED ✅
+  - Tests: 22/22 PASS + 4/4 E2E PASS
 - **RICE:**
   - **Reach:** 8
   - **Impact:** 8
@@ -212,14 +217,18 @@
   - **Effort:** 3
   - **Score:** 93.33
 
-### AG-010
+### AG-010 ✅ DONE (2026-03-31)
 - **Title:** Clean project git diff before release commit
 - **Type:** hygiene
-- **Status:** TODO
+- **Status:** DONE
 - **Priority:** P1
+- **Closed:** 2026-03-31
 - **Why:** в рабочем дереве есть накопленные изменения, нужен осознанный release diff
-- **Done_when:** понятен список файлов для commit без мусора и случайных побочек
-- **Risks:** можно случайно выкинуть нужные изменения
+- **Done_when:** понятен список файлов для commit без мусора и случайных побочек ✅
+- **Result:**
+  - 9 файлов закоммичено (app/, tests/, scripts/, crew/, state/)
+  - Мусор (данные staging, логи) исключён
+  - Git diff clean
 - **RICE:**
   - **Reach:** 8
   - **Impact:** 6
