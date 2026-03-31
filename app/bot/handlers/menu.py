@@ -144,14 +144,10 @@ async def _send_scenario_picker(message: Message) -> None:
     # Create compact keyboard: 5 scenario buttons + navigation + random + custom
     keyboard_rows = []
     
-    # First 5 scenario buttons (short names)
+    # First 5 scenario buttons (numbers only for cleaner UX)
     scenario_buttons = []
     for i, scenario in enumerate(page_scenarios, start_idx + 1):
-        # Extract short name for button (first word or up to 10 chars)
-        short_name = scenario.title.split()[0] if scenario.title.split() else scenario.title
-        if len(short_name) > 10:
-            short_name = short_name[:10] + ".."
-        scenario_buttons.append(InlineKeyboardButton(text=f"[{i}. {short_name}]", callback_data=f"pick_scenario:{scenario.id}"))
+        scenario_buttons.append(InlineKeyboardButton(text=f"[{i}]", callback_data=f"pick_scenario:{scenario.id}"))
     
     # Add scenario buttons in rows of 5
     for i in range(0, len(scenario_buttons), 5):
@@ -205,9 +201,20 @@ async def _start_duel(message: Message, scenario_code: Union[str, None] = None) 
             session, telegram_user_id=message.from_user.id
         )
         if existing_duel and existing_duel.status not in ("finished", "cancelled"):
+            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+            reset_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🗑 Сбросить поединок", callback_data=f"reset_duel:{existing_duel.id}")],
+                [InlineKeyboardButton(text="◀️ Вернуться", callback_data="back_to_menu")]
+            ])
             await message.answer(
-                "У вас уже есть активный поединок. Завершите текущий раунд или нажмите «🏁 Завершить раунд».\n\n"
-                "Чтобы начать новый поединок, сначала завершите текущий."
+                "⚠️ <b>У вас уже есть активный поединок</b>\n\n"
+                f"Поединок #{existing_duel.id} в статусе: <i>{existing_duel.status}</i>\n\n"
+                "Вы можете:\n"
+                "• Завершить текущий раунд (кнопка в сообщении дуэли)\n"
+                "• Сбросить поединок и начать новый\n"
+                "• Вернуться в меню",
+                parse_mode="HTML",
+                reply_markup=reset_keyboard
             )
             return
         
@@ -654,14 +661,10 @@ async def show_scenarios_page(callback: CallbackQuery) -> None:
         # Create compact keyboard: 5 scenario buttons + navigation + random + custom
         keyboard_rows = []
         
-        # First 5 scenario buttons (short names)
+        # First 5 scenario buttons (numbers only for cleaner UX)
         scenario_buttons = []
         for i, scenario in enumerate(page_scenarios, start_idx + 1):
-            # Extract short name for button (first word or up to 10 chars)
-            short_name = scenario.title.split()[0] if scenario.title.split() else scenario.title
-            if len(short_name) > 10:
-                short_name = short_name[:10] + ".."
-            scenario_buttons.append(InlineKeyboardButton(text=f"[{i}. {short_name}]", callback_data=f"pick_scenario:{scenario.id}"))
+            scenario_buttons.append(InlineKeyboardButton(text=f"[{i}]", callback_data=f"pick_scenario:{scenario.id}"))
         
         # Add scenario buttons in rows of 5
         for i in range(0, len(scenario_buttons), 5):
@@ -743,6 +746,57 @@ async def end_round_or_finish_duel(callback: CallbackQuery) -> None:
     await callback.answer(text="OK")
     await _process_end_round(callback.message)
 
+@router.callback_query(F.data.startswith("duel:v1:end:"))
+async def end_round_v1_callback(callback: CallbackQuery) -> None:
+    """Handle new inline button format: duel:v1:end:{duel_id}:{round_no}"""
+    await callback.answer(text="OK")
+    await _process_end_round(callback.message)
+
+@router.callback_query(F.data.startswith("reset_duel:"))
+async def reset_duel_callback(callback: CallbackQuery) -> None:
+    """Handle duel reset button"""
+    try:
+        duel_id = int(callback.data.split(":", 1)[1])
+    except (ValueError, IndexError):
+        await callback.answer(text="Ошибка: неверный ID поединка")
+        return
+    
+    async with db_session.AsyncSessionLocal() as session:
+        duel_service = DuelService()
+        duel = await duel_service.get_duel(session, duel_id)
+        
+        if duel is None:
+            await callback.answer(text="Поединок не найден")
+            await callback.message.edit_text(
+                "⚠️ Поединок уже удалён или не существует.",
+                reply_markup=None
+            )
+            return
+        
+        # Verify ownership
+        if duel.user_telegram_id != callback.from_user.id:
+            await callback.answer(text="Вы не можете сбросить чужой поединок")
+            return
+        
+        # Mark as finished
+        if duel.status not in ("finished", "cancelled"):
+            duel.status = "finished"
+            await session.commit()
+        
+        await callback.answer(text="Поединок сброшен")
+        await callback.message.edit_text(
+            "✅ <b>Поединок сброшен</b>\n\nТеперь вы можете начать новый поединок.",
+            parse_mode="HTML",
+            reply_markup=None
+        )
+
+@router.callback_query(F.data == "back_to_menu")
+async def back_to_menu_callback(callback: CallbackQuery) -> None:
+    """Handle back to menu button"""
+    await callback.answer(text="OK")
+    await callback.message.delete()
+    await show_main_menu(callback.message)
+
 async def _process_end_round(target_message: Message) -> None:
     user_id = target_message.from_user.id
     if user_id in ACTION_IN_PROGRESS_USERS:
@@ -761,7 +815,15 @@ async def _process_end_round(target_message: Message) -> None:
             round_1 = await duel_service.get_round(session, duel.id, 1)
             round_2 = await duel_service.get_round(session, duel.id, 2)
             if round_1 is None or round_2 is None:
-                await target_message.answer("Не смог найти раунды этого поединка.")
+                await target_message.answer(
+                    "⚠️ <b>Поединок устарел или повреждён</b>\n\n"
+                    "Данные поединка не найдены. Начните новый поединок.",
+                    parse_mode="HTML"
+                )
+                # Mark duel as finished to prevent further issues
+                if duel and duel.status != "finished":
+                    duel.status = "finished"
+                    await session.commit()
                 return
 
             if duel.status == "finished" or round_2.status == "finished":
