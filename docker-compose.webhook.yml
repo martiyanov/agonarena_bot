@@ -1,0 +1,55 @@
+version: "3.9"
+
+# Docker Compose configuration for Webhook mode
+# This configuration runs the bot in webhook mode with nginx reverse proxy
+#
+# Usage:
+#   1. Configure .env with TELEGRAM_WEBHOOK_SECRET and proper APP_BASE_URL
+#   2. Run: docker-compose -f docker-compose.webhook.yml up -d
+#   3. Set webhook: python scripts/set_webhook.py
+#
+# For rollback to polling mode:
+#   1. docker-compose -f docker-compose.webhook.yml down
+#   2. docker-compose up -d (uses regular docker-compose.yml)
+
+services:
+  app:
+    build: .
+    container_name: agonarena-bot-app
+    env_file:
+      - .env
+    expose:
+      - "8080"  # Only expose to internal network, not host
+    volumes:
+      - ./data:/app/data
+      - ./ops/ssl:/app/ops/ssl:ro
+    restart: unless-stopped
+    networks:
+      - agonarena-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  nginx:
+    image: nginx:alpine
+    container_name: agonarena-bot-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ops/nginx/agonarena_bot.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./ops/ssl:/app/ops/ssl:ro
+      # Let's Encrypt certificates (mounted from host)
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+    networks:
+      - agonarena-network
+
+networks:
+  agonarena-network:
+    driver: bridge

@@ -27,6 +27,12 @@ async def telegram_webhook(request: Request) -> dict:
     if not settings.telegram_bot_token:
         raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
 
+    # Validate secret token for webhook security
+    if settings.telegram_webhook_secret:
+        secret_header = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+        if secret_header != settings.telegram_webhook_secret:
+            raise HTTPException(status_code=401, detail="Unauthorized: invalid secret token")
+
     payload = await request.json()
     bot = Bot(token=settings.telegram_bot_token)
     update = Update.model_validate(payload)

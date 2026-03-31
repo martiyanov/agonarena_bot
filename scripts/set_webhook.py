@@ -28,7 +28,9 @@ async def set_webhook():
         try:
             data = {
                 "url": webhook_url,
-                "secret_token": settings.telegram_webhook_secret or ""
+                "secret_token": settings.telegram_webhook_secret or "",
+                "max_connections": 40,
+                "allowed_updates": ["message", "callback_query", "inline_query"]
             }
             async with session.post(telegram_api_url, json=data) as response:
                 result = await response.json()
