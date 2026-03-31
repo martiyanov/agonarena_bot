@@ -164,7 +164,7 @@ class TestRound2Completion:
             # Обновляем дуэль из БД
             updated_duel = await DuelService().get_duel(session, duel.id)
 
-            assert updated_duel.status == "judging"
+            assert updated_duel.status == "round_2_transition"
 
     @pytest.mark.asyncio
     async def test_round_2_completion_sets_duel_as_completely_finished(self, fresh_test_db) -> None:
@@ -182,7 +182,7 @@ class TestRound2Completion:
             updated_duel = await DuelService().get_duel(session, duel.id)
             updated_rounds = await DuelService().get_duel_rounds(session, duel.id)
 
-            assert updated_duel.status == "judging"
+            assert updated_duel.status == "round_2_transition"
             assert updated_rounds[0].status == "finished"
             assert updated_rounds[1].status == "finished"
 
@@ -202,7 +202,7 @@ class TestRound2Completion:
             updated_duel = await DuelService().get_duel(session, duel.id)
 
             # Проверяем, что дуэль в состоянии ожидания оценки судей
-            assert updated_duel.status == "judging"
+            assert updated_duel.status == "round_2_transition"
             assert updated_duel.current_round_number == 2  # Оба раунда завершены
 
 
@@ -260,7 +260,7 @@ class TestTimerExpiryHandling:
 
             updated_duel = await DuelService().get_duel(session, duel.id)
 
-            assert updated_duel.status == "judging"
+            assert updated_duel.status == "round_2_transition"
 
 
 class TestEndRoundButtonProtection:
@@ -419,21 +419,21 @@ class TestRoundStatusValidation:
             duel = await DuelService().create_duel(session, telegram_user_id=56, scenario=scenario)
             rounds = await DuelService().get_duel_rounds(session, duel.id)
 
-            # Изначально дуэль в статусе pending, затем становится in_progress
-            assert duel.status in ["pending", "in_progress"]
+            # Изначально дуэль в статусе round_1_active
+            assert duel.status == "round_1_active"
 
             # Завершаем первый раунд
             await DuelService().complete_round(duel, rounds[0])
             await session.commit()
 
             updated_duel_after_r1 = await DuelService().get_duel(session, duel.id)
-            # После первого раунда статус всё ещё in_progress
-            assert updated_duel_after_r1.status in ["in_progress", "pending"]
+            # После первого раунда статус round_1_transition
+            assert updated_duel_after_r1.status == "round_1_transition"
 
             # Завершаем второй раунд
             await DuelService().complete_round(duel, rounds[1])
             await session.commit()
 
             updated_duel_after_r2 = await DuelService().get_duel(session, duel.id)
-            # После второго раунда статус должен быть judging
-            assert updated_duel_after_r2.status == "judging"
+            # После второго раунда статус должен быть round_2_transition
+            assert updated_duel_after_r2.status == "round_2_transition"

@@ -1,3 +1,4 @@
+import asyncio
 import math
 from datetime import datetime, timedelta
 
@@ -8,6 +9,20 @@ from app.db.models import Duel, DuelMessage, DuelRound, JudgeResult, Scenario
 
 
 class DuelService:
+    # Concurrency locks per duel_id to prevent race conditions
+    _duel_locks: dict[int, asyncio.Lock] = {}
+
+    @classmethod
+    async def get_duel_lock(cls, duel_id: int) -> asyncio.Lock:
+        """Get or create an asyncio.Lock for the given duel_id."""
+        if duel_id not in cls._duel_locks:
+            cls._duel_locks[duel_id] = asyncio.Lock()
+        return cls._duel_locks[duel_id]
+
+    @classmethod
+    def cleanup_duel_lock(cls, duel_id: int) -> None:
+        """Remove lock for a finished duel (optional cleanup)."""
+        cls._duel_locks.pop(duel_id, None)
     async def get_scenario_by_code(self, session: AsyncSession, code: str) -> Scenario | None:
         result = await session.execute(select(Scenario).where(Scenario.code == code, Scenario.is_active.is_(True)))
         return result.scalar_one_or_none()
@@ -19,7 +34,7 @@ class DuelService:
     async def create_duel(self, session: AsyncSession, telegram_user_id: int, scenario: Scenario) -> Duel:
         now = datetime.utcnow()
         duel = Duel(
-            status="in_progress",
+            status="round_1_active",
             scenario_id=scenario.id,
             user_telegram_id=telegram_user_id,
             current_round_number=1,
@@ -80,8 +95,12 @@ class DuelService:
         return result.scalar_one_or_none()
 
     async def ensure_round_started(self, duel: Duel, round_obj: DuelRound) -> None:
-        if duel.status == "ready":
-            duel.status = "in_progress"
+        # Update duel status to active if in processing/transition state
+        if duel.status in ("round_1_processing", "round_1_transition", "round_2_processing", "round_2_transition"):
+            if round_obj.round_number == 1:
+                duel.status = "round_1_active"
+            else:
+                duel.status = "round_2_active"
         if round_obj.status == "pending":
             round_obj.status = "in_progress"
             round_obj.started_at = datetime.utcnow()
@@ -138,14 +157,17 @@ class DuelService:
 
         if round_obj.round_number == 1:
             duel.current_round_number = 2
-            duel.status = "in_progress"
+            duel.status = "round_1_transition"
         else:
-            duel.status = "judging"
+            duel.status = "round_2_transition"
 
     async def finish_duel(self, duel: Duel, final_verdict: str) -> None:
         duel.status = "finished"
         duel.final_verdict = final_verdict
         duel.updated_at = datetime.utcnow()
+        # Cleanup lock for finished duel
+        cls = type(self)
+        cls.cleanup_duel_lock(duel.id)
 
     async def list_judge_results(self, session: AsyncSession, duel_id: int) -> list[JudgeResult]:
         result = await session.execute(

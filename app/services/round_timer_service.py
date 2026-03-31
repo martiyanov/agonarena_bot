@@ -60,8 +60,9 @@ class RoundTimerService:
                     # Check immediately after sleep - duel may have been finished by user
                     if duel is None or round_obj is None:
                         return
-                    if duel.status == "finished":
-                        logger.info("round timer: duel already finished, skipping for duel=%s", duel_id)
+                    # Check for finished or transition states (user may have clicked inline button)
+                    if duel.status in ("finished", "judging", "round_1_transition", "round_2_transition"):
+                        logger.info("round timer: duel already finished/transitioning (status=%s), skipping for duel=%s", duel.status, duel_id)
                         return
                     if round_obj.status != "in_progress":
                         logger.info(
@@ -88,11 +89,11 @@ class RoundTimerService:
                     await session.commit()
                     break
 
-            # Final check before sending message - user may have clicked "End Round" during the check above
+            # Final check before sending message - user may have clicked inline button during the check above
             async with db_session.AsyncSessionLocal() as session:
                 duel_service = DuelService()
                 duel = await duel_service.get_duel(session, duel_id)
-                if duel is None or duel.status == "finished":
+                if duel is None or duel.status in ("finished", "judging", "round_1_transition", "round_2_transition"):
                     logger.info("round timer: skipping timeout message for duel=%s (status=%s)", duel_id, duel.status if duel else "None")
                     return
 
@@ -102,9 +103,9 @@ class RoundTimerService:
             bot = Bot(token=settings.telegram_bot_token)
             try:
                 if round_number == 1:
-                    text = "⏱ Время первого раунда вышло. Нажмите «🏁 Завершить раунд», чтобы перейти дальше."
+                    text = "⏱ Время первого раунда вышло. Используйте кнопку «🏁 Завершить раунд» в сообщении для перехода дальше."
                 else:
-                    text = "⏱ Время второго раунда вышло. Нажмите «🏁 Завершить раунд», чтобы получить итог."
+                    text = "⏱ Время второго раунда вышло. Используйте кнопку «🏁 Завершить поединок» в сообщении для получения итога."
                 logger.info("round timer: sending timeout message for duel=%s round=%s", duel_id, round_number)
                 await bot.send_message(chat_id=chat_id, text=text)
             finally:

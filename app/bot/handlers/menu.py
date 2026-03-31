@@ -199,6 +199,18 @@ async def show_scenarios(message: Message) -> None:
 async def _start_duel(message: Message, scenario_code: Union[str, None] = None) -> None:
     async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
+        
+        # Check if user already has an active duel
+        existing_duel = await duel_service.get_latest_duel_for_user(
+            session, telegram_user_id=message.from_user.id
+        )
+        if existing_duel and existing_duel.status not in ("finished", "cancelled"):
+            await message.answer(
+                "У вас уже есть активный поединок. Завершите текущий раунд или нажмите «🏁 Завершить раунд».\n\n"
+                "Чтобы начать новый поединок, сначала завершите текущий."
+            )
+            return
+        
         if scenario_code:
             scenario = await duel_service.get_scenario_by_code(session, scenario_code)
         else:
@@ -562,7 +574,8 @@ async def _download_telegram_file(message: Message) -> Path:
 
 @router.message(F.text == START_BUTTON)
 async def handle_start_button(message: Message) -> None:
-    await show_main_menu(message)
+    # Кнопка "🎯 Сценарии" должна показывать выбор сценариев, а не главное меню
+    await _send_scenario_picker(message)
 
 @router.callback_query(F.data == "start_duel")
 async def start_duel_from_menu(callback: CallbackQuery) -> None:

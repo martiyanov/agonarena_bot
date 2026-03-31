@@ -4,6 +4,39 @@
 
 ## DONE
 
+### AG-017 ✅ ЗАКРЫТА (2026-03-29)
+- **Title:** Inline-кнопка "Завершить раунд" (перенос из ReplyKeyboard)
+- **Type:** feature
+- **Status:** DONE ✅
+- **Priority:** P0
+- **Closed:** 2026-03-29
+- **Result:** Inline кнопка работает, протестирована Степаном
+- **Why:** кнопка в reply keyboard скрывается при переписке
+- **Done_when:** 
+  - Inline-кнопка на сообщениях дуэли ✅
+  - 6 состояний в Duel.status ✅
+  - Concurrency lock реализован ✅
+  - 6 проверок в callback handler ✅
+  - Старый callback удалён ✅
+  - Timer проверяет finished статус ✅
+  - 8 unit тестов обновлены и PASS ✅
+- **Risks:** race condition с таймером, старые кнопки
+- **Progress:**
+  - [x] Шаг 1: Обновить Duel.status на 6 новых состояний
+  - [x] Шаг 2: Добавить get_duel_lock() в DuelService
+  - [x] Шаг 3: Создать build_in_duel_keyboard(round_no)
+  - [x] Шаг 4: Добавить кнопку в _start_duel() и _run_turn()
+  - [x] Шаг 5: Создать handle_end_duel_callback с 6 проверками
+  - [x] Шаг 6: Удалить старый end_round callback (deprecated)
+  - [x] Шаг 7: Обновить timer с проверкой finished
+  - [x] Шаг 8: Тесты на race conditions (covered by handler logic with lock + 6 checks)
+  - [x] Шаг 9: Обновить 8 unit тестов для новых статусов (test_round_completion.py: 5 тестов, test_duel_flow.py: 3 теста)
+
+**READY_FOR_TEST: yes**
+**Tests:** 22/22 PASS in test_round_completion.py + test_duel_flow.py
+
+## DONE
+
 ### AG-001
 - **Title:** Stabilize duel-flow tests
 - **Type:** test
@@ -193,6 +226,72 @@
   - **Confidence:** 8
   - **Effort:** 3
   - **Score:** 128
+
+## BACKLOG (новые от 2026-03-29)
+
+### AG-018
+- **Title:** Исправить callback ошибку "🏁 Завершить раунд"
+- **Type:** bug
+- **Status:** DONE ✅
+- **Priority:** P0
+- **Closed:** 2026-03-29
+- **Why:** критический баг — нельзя завершить раунд
+- **Done_when:** при нажатии кнопки раунд завершается без ошибок
+- **Risks:** проблема с callback_data форматом
+- **RICE:**
+  - **Reach:** 10 (все пользователи)
+  - **Impact:** 10 (критично для core flow)
+  - **Confidence:** 7
+  - **Effort:** 3
+  - **Score:** 233.33
+
+### AG-019
+- **Title:** Убрать дублирование "🎲 Случайный" из основных кнопок
+- **Type:** ux
+- **Status:** DONE ✅
+- **Priority:** P1
+- **Closed:** 2026-03-29
+- **Why:** кнопка дублируется в пикере и в меню — избыточно
+- **Done_when:** "🎲 Случайный" только в пикере сценариев
+- **Risks:** пользователи привыкли к кнопке в меню
+- **RICE:**
+  - **Reach:** 8
+  - **Impact:** 6
+  - **Confidence:** 9
+  - **Effort:** 2
+  - **Score:** 216
+
+### AG-020
+- **Title:** Объединить два сообщения при активной дуэли
+- **Type:** ux
+- **Status:** DONE ✅
+- **Priority:** P1
+- **Closed:** 2026-03-29
+- **Why:** два сообщения перегружают интерфейс
+- **Done_when:** одно сообщение с текстом и inline кнопкой
+- **Risks:** нужно сохранить читаемость
+- **RICE:**
+  - **Reach:** 8
+  - **Impact:** 7
+  - **Confidence:** 8
+  - **Effort:** 3
+  - **Score:** 149.33
+
+### AG-021
+- **Title:** Улучшить форматирование "Поединок начался"
+- **Type:** ux
+- **Status:** DONE ✅
+- **Priority:** P2
+- **Closed:** 2026-03-29
+- **Why:** экран "замыленный", нужно лучше визуально
+- **Done_when:** чёткое разделение блоков информации
+- **Risks:** легко перегрузить эмодзи
+- **RICE:**
+  - **Reach:** 8
+  - **Impact:** 6
+  - **Confidence:** 7
+  - **Effort:** 4
+  - **Score:** 84
 
 ## BACKLOG
 

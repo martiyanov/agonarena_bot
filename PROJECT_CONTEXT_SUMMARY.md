@@ -75,11 +75,15 @@
 **Операционные правила (из crew/AGENT_POLICY.md):**
 
 1. **PM = single entry/exit** — вся координация через роль PM
-2. **THINKING_MODE_CONTROL** — режимы EXECUTION (default), ANALYSIS, FREE
-3. **DIRECT_MAIN git workflow** — работа в main по умолчанию, commit + push после задачи
-4. **SAFE_BRANCH только для рискованных работ** — migration, large refactor, experimental changes
-5. **Mandatory documentation updates** — обновление state/* файлов после значимых изменений
-6. **Chinese stack priority** — ModelStudio модели по умолчанию (qwen3.5-plus, qwen3-coder-plus)
+2. **PM не фиксит баги** — PM оформляет баг и передаёт разработчику
+3. **THINKING_MODE_CONTROL** — режимы EXECUTION (default), ANALYSIS, FREE
+4. **DIRECT_MAIN git workflow** — работа в main по умолчанию, commit + push после задачи
+5. **SAFE_BRANCH только для рискованных работ** — migration, large refactor, experimental changes
+6. **Mandatory documentation updates** — обновление state/* файлов после значимых изменений
+7. **Chinese stack priority** — ModelStudio модели по умолчанию (qwen3.5-plus, qwen3-coder-plus)
+
+**Баг-фикс процесс:**
+- Dev → Stage → Prod (только после тестирования)
 
 ---
 
