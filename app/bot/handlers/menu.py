@@ -534,7 +534,8 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
         if duel is None:
             await message.answer(f"Сейчас у вас нет активного поединка. Нажмите «{START_BUTTON}».")
             return
-        if duel.status == "finished":
+        logger.debug(f"[_run_turn] Duel {duel.id} status check #1: {duel.status}")
+        if duel.status in ("finished", "cancelled"):
             await message.answer(f"Последний поединок уже завершён. Чтобы начать заново, нажмите «{START_BUTTON}».")
             return
         duel_id = duel.id
@@ -558,7 +559,8 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
             if duel is None:
                 await message.answer(f"Сейчас у вас нет активного поединка. Нажмите «{START_BUTTON}».")
                 return
-            if duel.status == "finished":
+            logger.debug(f"[_run_turn] Duel {duel.id} status check #2 (after re-fetch): {duel.status}")
+            if duel.status in ("finished", "cancelled"):
                 await message.answer(f"Последний поединок уже завершён. Чтобы начать заново, нажмите «{START_BUTTON}».")
                 return
 
