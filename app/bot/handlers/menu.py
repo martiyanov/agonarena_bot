@@ -749,8 +749,92 @@ async def end_round_or_finish_duel(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("duel:v1:end:"))
 async def end_round_v1_callback(callback: CallbackQuery) -> None:
     """Handle new inline button format: duel:v1:end:{duel_id}:{round_no}"""
-    await callback.answer(text="OK")
-    await _process_end_round(callback.message)
+    try:
+        # Parse callback data
+        parts = callback.data.split(":")
+        if len(parts) != 5:
+            await callback.answer(text="⚠️ Ошибка: неверный формат кнопки")
+            logger.warning(f"Invalid callback format: {callback.data}")
+            return
+        
+        duel_id = int(parts[3])
+        round_no = int(parts[4])
+        
+        # Verify duel exists and belongs to user
+        async with db_session.AsyncSessionLocal() as session:
+            duel_service = DuelService()
+            duel = await duel_service.get_duel(session, duel_id)
+            
+            if duel is None:
+                await callback.answer(text="⚠️ Поединок не найден")
+                await callback.message.edit_text(
+                    "⚠️ <b>Поединок устарел</b>\n\nЭтот поединок больше не существует.",
+                    parse_mode="HTML"
+                )
+                return
+            
+            if duel.user_telegram_id != callback.from_user.id:
+                await callback.answer(text="⚠️ Это не ваш поединок")
+                return
+            
+            if duel.status == "finished":
+                await callback.answer(text="✅ Поединок уже завершён")
+                return
+        
+        # Show processing feedback
+        await callback.answer(text="⏳ Завершаю раунд...")
+        await _process_end_round(callback.message)
+        
+    except ValueError as e:
+        await callback.answer(text="⚠️ Ошибка данных")
+        logger.error(f"ValueError in end_round_v1_callback: {e}")
+    except Exception as e:
+        await callback.answer(text="⚠️ Произошла ошибка")
+        logger.exception(f"Error in end_round_v1_callback: {e}")
+
+@router.callback_query(F.data == "continue_duel")
+async def continue_duel_callback(callback: CallbackQuery) -> None:
+    """Handle continue duel button from /start"""
+    await callback.answer(text="▶️ Продолжаем")
+    await callback.message.delete()
+    
+    # Show current duel status
+    async with db_session.AsyncSessionLocal() as session:
+        duel_service = DuelService()
+        duel = await duel_service.get_latest_duel_for_user(
+            session, telegram_user_id=callback.from_user.id
+        )
+        
+        if duel and duel.status not in ("finished", "cancelled"):
+            await callback.message.answer(
+                f"🎮 <b>Поединок #{duel.id}</b>\n"
+                f"Статус: <i>{duel.status}</i>\n\n"
+                f"Отправьте сообщение или голосовое, чтобы сделать ход.",
+                parse_mode="HTML"
+            )
+        else:
+            await show_main_menu(callback.message)
+
+@router.callback_query(F.data == "reset_and_new")
+async def reset_and_new_callback(callback: CallbackQuery) -> None:
+    """Handle reset and new duel button"""
+    await callback.answer(text="🗑 Сбрасываю")
+    
+    async with db_session.AsyncSessionLocal() as session:
+        duel_service = DuelService()
+        duel = await duel_service.get_latest_duel_for_user(
+            session, telegram_user_id=callback.from_user.id
+        )
+        
+        if duel and duel.status not in ("finished", "cancelled"):
+            duel.status = "finished"
+            await session.commit()
+    
+    await callback.message.edit_text(
+        "✅ <b>Поединок сброшен</b>\n\nВыберите сценарий для нового поединка:",
+        parse_mode="HTML"
+    )
+    await _send_scenario_picker(callback.message)
 
 @router.callback_query(F.data.startswith("reset_duel:"))
 async def reset_duel_callback(callback: CallbackQuery) -> None:
@@ -1038,6 +1122,33 @@ async def show_main_menu(message: Message) -> None:
 @router.message(F.text == "/start")
 @router.message(F.text == "Меню")
 async def handle_start_command(message: Message) -> None:
+    # Check for active duel and show options
+    async with db_session.AsyncSessionLocal() as session:
+        duel_service = DuelService()
+        duel = await duel_service.get_latest_duel_for_user(
+            session, telegram_user_id=message.from_user.id
+        )
+        
+        if duel and duel.status not in ("finished", "cancelled"):
+            # User has active duel — show options
+            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+            
+            active_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="▶️ Продолжить поединок", callback_data="continue_duel")],
+                [InlineKeyboardButton(text="🗑 Сбросить и начать новый", callback_data="reset_and_new")],
+                [InlineKeyboardButton(text="📋 Главное меню", callback_data="back_to_menu")]
+            ])
+            
+            await message.answer(
+                f"⚠️ <b>У вас есть активный поединок</b> #{duel.id}\n"
+                f"Статус: <i>{duel.status}</i>\n\n"
+                f"Что хотите сделать?",
+                parse_mode="HTML",
+                reply_markup=active_keyboard
+            )
+            return
+    
+    # No active duel — show main menu
     await show_main_menu(message)
 
 
