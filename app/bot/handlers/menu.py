@@ -113,7 +113,14 @@ def _format_final_verdict(judge_service: JudgeService, verdicts: list, final_ver
     return "\n".join(lines)
 
 
-async def _send_scenario_picker(message: Message) -> None:
+# Отслеживание message_id для сценариев: {user_id: message_id}
+_SCENARIO_PICKER_MESSAGE_IDS: dict[int, int] = {}
+
+
+async def _send_scenario_picker(message: Message, user_id: int | None = None) -> None:
+    """Send scenario picker, deleting any previous picker message for this user."""
+    target_user_id = user_id or message.from_user.id
+    
     async with db_session.AsyncSessionLocal() as session:
         scenarios = await ScenarioService().list_active(session)
 
@@ -182,11 +189,22 @@ async def _send_scenario_picker(message: Message) -> None:
     else:
         page_title = f"Страница {page}\n\n"
     
-    await message.answer(
+    # Delete previous scenario picker message if exists
+    prev_message_id = _SCENARIO_PICKER_MESSAGE_IDS.get(target_user_id)
+    if prev_message_id:
+        try:
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=prev_message_id)
+        except Exception:
+            # Message might already be deleted or too old to delete
+            pass
+    
+    # Send new message and track its ID
+    sent_message = await message.answer(
         f"{page_title}{scenarios_text}\n\n", 
         parse_mode="HTML", 
         reply_markup=markup
     )
+    _SCENARIO_PICKER_MESSAGE_IDS[target_user_id] = sent_message.message_id
 
 
 @router.message(F.text == SCENARIOS_BUTTON)
@@ -765,11 +783,28 @@ async def show_scenarios_page(callback: CallbackQuery) -> None:
         else:
             page_title = f"Страница {page_num}\n\n"
         
-        await callback.message.edit_text(
-            f"{page_title}{scenarios_text}\n\n", 
-            parse_mode="HTML", 
+        # Delete old message and send new one to avoid stale keyboard issues
+        user_id = callback.from_user.id
+        chat_id = callback.message.chat.id
+        old_message_id = callback.message.message_id
+        
+        try:
+            await callback.message.delete()
+        except Exception:
+            # If we can't delete, try to edit instead
+            pass
+        
+        # Send new message with fresh keyboard
+        sent_message = await callback.bot.send_message(
+            chat_id=chat_id,
+            text=f"{page_title}{scenarios_text}\n\n",
+            parse_mode="HTML",
             reply_markup=markup
         )
+        
+        # Track the new message ID
+        _SCENARIO_PICKER_MESSAGE_IDS[user_id] = sent_message.message_id
+        
     except ValueError:
         await callback.message.answer("Ошибка при переключении страницы.")
 
@@ -898,11 +933,13 @@ async def reset_and_new_callback(callback: CallbackQuery) -> None:
             duel.status = "finished"
             await session.commit()
     
-    await callback.message.edit_text(
-        "✅ <b>Поединок сброшен</b>\n\nВыберите сценарий для нового поединка:",
-        parse_mode="HTML"
-    )
-    await _send_scenario_picker(callback.message)
+    # Delete the old message and send new scenario picker
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    
+    await _send_scenario_picker(callback.message, user_id=callback.from_user.id)
 
 
 @router.callback_query(F.data.startswith("reset_and_start:"))
