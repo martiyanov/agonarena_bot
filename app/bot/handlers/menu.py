@@ -585,9 +585,8 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
         )
         return
     
-    try:
-        # First, get the duel to acquire per-duel lock
-        async with db_session.AsyncSessionLocal() as session:
+    # First, get the duel to acquire per-duel lock
+    async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
         duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=user_id)
         if duel is None:
@@ -598,7 +597,7 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
             await message.answer(f"Последний поединок уже завершён. Чтобы начать заново, нажмите «{START_BUTTON}».")
             return
         duel_id = duel.id
-    
+
     # Acquire per-duel lock to prevent parallel turn processing
     if not await duel_lock_manager.acquire_duel_lock(duel_id, timeout=30.0):
         await message.answer(
