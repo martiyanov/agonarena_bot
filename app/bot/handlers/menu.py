@@ -202,17 +202,36 @@ async def _start_duel(message: Message, scenario_code: Union[str, None] = None) 
         )
         if existing_duel and existing_duel.status not in ("finished", "cancelled"):
             from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+            
+            # Get duel details
+            scenario = await duel_service.get_scenario_by_id(session, existing_duel.scenario_id)
+            rounds = await duel_service.get_duel_rounds(session, existing_duel.id)
+            current_round = next((r for r in rounds if r.round_number == existing_duel.current_round_number), None)
+            
+            # Count turns in current round
+            messages = await duel_service.list_messages_for_round(
+                session, duel_id=existing_duel.id, round_number=existing_duel.current_round_number
+            )
+            turn_count = len([m for m in messages if m.author == "user"])
+            
+            # Build duel details text
+            scenario_title = escape(scenario.title) if scenario else "Неизвестный сценарий"
+            round_info = f"Раунд {existing_duel.current_round_number} из 2"
+            role_info = f"Роль: {escape(current_round.user_role) if current_round else 'N/A'}"
+            turns_info = f"Сделано ходов: {turn_count}"
+            
             reset_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🗑 Сбросить поединок", callback_data=f"reset_duel:{existing_duel.id}")],
-                [InlineKeyboardButton(text="◀️ Вернуться", callback_data="back_to_menu")]
+                [InlineKeyboardButton(text="✓ Да, начать новый", callback_data=f"reset_and_start:{existing_duel.id}:{scenario_code or 'random'}")],
+                [InlineKeyboardButton(text="✗ Нет, продолжить текущий", callback_data=f"continue_current:{existing_duel.id}")]
             ])
             await message.answer(
                 "⚠️ <b>У вас уже есть активный поединок</b>\n\n"
-                f"Поединок #{existing_duel.id} в статусе: <i>{existing_duel.status}</i>\n\n"
-                "Вы можете:\n"
-                "• Завершить текущий раунд (кнопка в сообщении дуэли)\n"
-                "• Сбросить поединок и начать новый\n"
-                "• Вернуться в меню",
+                f"<b>Текущий поединок:</b>\n"
+                f"• Сценарий: {scenario_title}\n"
+                f"• {round_info}\n"
+                f"• {role_info}\n"
+                f"• {turns_info}\n\n"
+                f"Начать новый поединок с выбранным сценарием?",
                 parse_mode="HTML",
                 reply_markup=reset_keyboard
             )
@@ -835,6 +854,91 @@ async def reset_and_new_callback(callback: CallbackQuery) -> None:
         parse_mode="HTML"
     )
     await _send_scenario_picker(callback.message)
+
+
+@router.callback_query(F.data.startswith("reset_and_start:"))
+async def reset_and_start_duel(callback: CallbackQuery) -> None:
+    """Handle reset and start new duel with selected scenario"""
+    try:
+        parts = callback.data.split(":")
+        if len(parts) != 3:
+            await callback.answer(text="⚠️ Ошибка: неверный формат данных")
+            return
+        
+        duel_id = int(parts[1])
+        scenario_code = parts[2]
+    except (ValueError, IndexError):
+        await callback.answer(text="⚠️ Ошибка: неверные данные")
+        return
+    
+    await callback.answer(text="🗑 Сбрасываю и начинаю новый...")
+    
+    async with db_session.AsyncSessionLocal() as session:
+        duel_service = DuelService()
+        
+        # Reset old duel
+        duel = await duel_service.get_duel(session, duel_id)
+        if duel and duel.status not in ("finished", "cancelled"):
+            duel.status = "finished"
+            await session.commit()
+    
+    # Delete the confirmation message
+    await callback.message.delete()
+    
+    # Start new duel with selected scenario
+    if scenario_code == "random":
+        await _start_duel(callback.message)
+    else:
+        await _start_duel(callback.message, scenario_code=scenario_code)
+
+
+@router.callback_query(F.data.startswith("continue_current:"))
+async def continue_current_duel(callback: CallbackQuery) -> None:
+    """Handle continue current duel button - show duel state"""
+    try:
+        duel_id = int(callback.data.split(":", 1)[1])
+    except (ValueError, IndexError):
+        await callback.answer(text="⚠️ Ошибка: неверный ID поединка")
+        return
+    
+    await callback.answer(text="▶️ Продолжаем")
+    await callback.message.delete()
+    
+    # Show current duel status
+    async with db_session.AsyncSessionLocal() as session:
+        duel_service = DuelService()
+        duel = await duel_service.get_duel(session, duel_id)
+        
+        if not duel or duel.status in ("finished", "cancelled"):
+            await callback.message.answer(
+                "⚠️ <b>Поединок не найден или уже завершён</b>",
+                parse_mode="HTML"
+            )
+            return
+        
+        # Get duel details
+        scenario = await duel_service.get_scenario_by_id(session, duel.scenario_id)
+        rounds = await duel_service.get_duel_rounds(session, duel.id)
+        current_round = next((r for r in rounds if r.round_number == duel.current_round_number), None)
+        
+        # Count turns in current round
+        messages = await duel_service.list_messages_for_round(
+            session, duel_id=duel.id, round_number=duel.current_round_number
+        )
+        turn_count = len([m for m in messages if m.author == "user"])
+        
+        scenario_title = escape(scenario.title) if scenario else "Неизвестный сценарий"
+        
+        status_text = (
+            f"🎮 <b>Поединок #{duel.id}</b>\n\n"
+            f"<b>Сценарий:</b> {scenario_title}\n"
+            f"<b>Раунд:</b> {duel.current_round_number} из 2\n"
+            f"<b>Ваша роль:</b> {escape(current_round.user_role) if current_round else 'N/A'}\n"
+            f"<b>Сделано ходов:</b> {turn_count}\n\n"
+            f"Отправьте сообщение или голосовое, чтобы сделать ход."
+        )
+        
+        await callback.message.answer(status_text, parse_mode="HTML")
 
 @router.callback_query(F.data.startswith("reset_duel:"))
 async def reset_duel_callback(callback: CallbackQuery) -> None:
