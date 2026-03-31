@@ -113,16 +113,23 @@ def _format_final_verdict(judge_service: JudgeService, verdicts: list, final_ver
     return "\n".join(lines)
 
 
-# Отслеживание message_id для сценариев: {user_id: message_id}
-_SCENARIO_PICKER_MESSAGE_IDS: dict[int, int] = {}
+# Отслеживание message_id для сценариев: {user_id: [message_id, ...]}
+_SCENARIO_PICKER_MESSAGE_IDS: dict[int, list[int]] = {}
+
+
+def track_scenario_message(user_id: int, message_id: int) -> None:
+    """Track a scenario-related message for later cleanup."""
+    if user_id not in _SCENARIO_PICKER_MESSAGE_IDS:
+        _SCENARIO_PICKER_MESSAGE_IDS[user_id] = []
+    _SCENARIO_PICKER_MESSAGE_IDS[user_id].append(message_id)
 
 
 async def cleanup_scenario_messages(user_id: int, message: Message) -> None:
     """Delete all old scenario picker messages for this user."""
-    prev_message_id = _SCENARIO_PICKER_MESSAGE_IDS.pop(user_id, None)
-    if prev_message_id:
+    message_ids = _SCENARIO_PICKER_MESSAGE_IDS.pop(user_id, [])
+    for msg_id in message_ids:
         try:
-            await message.bot.delete_message(chat_id=message.chat.id, message_id=prev_message_id)
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=msg_id)
         except Exception:
             # Message might already be deleted or too old to delete
             pass
@@ -200,14 +207,16 @@ async def _send_scenario_picker(message: Message, user_id: int | None = None) ->
     else:
         page_title = f"Страница {page}\n\n"
     
-    # Delete previous scenario picker message if exists
-    prev_message_id = _SCENARIO_PICKER_MESSAGE_IDS.get(target_user_id)
-    if prev_message_id:
+    # Delete previous scenario picker messages if exist
+    prev_message_ids = _SCENARIO_PICKER_MESSAGE_IDS.get(target_user_id, [])
+    for prev_msg_id in prev_message_ids:
         try:
-            await message.bot.delete_message(chat_id=message.chat.id, message_id=prev_message_id)
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=prev_msg_id)
         except Exception:
             # Message might already be deleted or too old to delete
             pass
+    # Clear the list after deletion
+    _SCENARIO_PICKER_MESSAGE_IDS.pop(target_user_id, None)
     
     # Send new message and track its ID
     sent_message = await message.answer(
@@ -215,7 +224,7 @@ async def _send_scenario_picker(message: Message, user_id: int | None = None) ->
         parse_mode="HTML", 
         reply_markup=markup
     )
-    _SCENARIO_PICKER_MESSAGE_IDS[target_user_id] = sent_message.message_id
+    track_scenario_message(target_user_id, sent_message.message_id)
 
 
 @router.message(F.text == SCENARIOS_BUTTON)
@@ -270,7 +279,7 @@ async def _start_duel(message: Message, scenario_code: Union[str, None] = None) 
                     [InlineKeyboardButton(text="✓ Да, начать новый", callback_data=f"reset_and_start:{existing_duel.id}:{scenario_code or 'random'}")],
                     [InlineKeyboardButton(text="✗ Нет, продолжить текущий", callback_data=f"continue_current:{existing_duel.id}")]
             ])
-                await message.answer(
+                sent_message = await message.answer(
                     "⚠️ <b>У вас уже есть активный поединок</b>\n\n"
                     f"<b>Текущий поединок:</b>\n"
                     f"• Сценарий: {scenario_title}\n"
@@ -281,6 +290,7 @@ async def _start_duel(message: Message, scenario_code: Union[str, None] = None) 
                     parse_mode="HTML",
                     reply_markup=reset_keyboard
                 )
+                track_scenario_message(user_id, sent_message.message_id)
                 return
             
             if scenario_code:
@@ -817,7 +827,7 @@ async def show_scenarios_page(callback: CallbackQuery) -> None:
         )
         
         # Track the new message ID
-        _SCENARIO_PICKER_MESSAGE_IDS[user_id] = sent_message.message_id
+        track_scenario_message(user_id, sent_message.message_id)
         
     except ValueError:
         await callback.message.answer("Ошибка при переключении страницы.")
