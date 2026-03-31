@@ -46,12 +46,12 @@ async def test_duel_completion():
                 return False
 
         # Duel not finished - check if we can complete it
-        if duel.status == "judging":
-            print(f"⏳ Duel #{duel.id} in judging state")
+        if duel.status == "round_2_transition":
+            print(f"⏳ Duel #{duel.id} in round_2_transition state")
             return True
 
-        if duel.status == "in_progress":
-            print(f"⏳ Duel #{duel.id} still in progress (status={duel.status})")
+        if duel.status in ("round_1_active", "round_2_active"):
+            print(f"⏳ Duel #{duel.id} still active (status={duel.status})")
             print("  This is expected if user hasn't finished round 2 yet")
             return True
 

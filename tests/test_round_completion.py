@@ -150,7 +150,7 @@ class TestRound2Completion:
 
     @pytest.mark.asyncio
     async def test_complete_round_2_triggers_judges(self, fresh_test_db) -> None:
-        """Завершение второго раунда переводит дуэль в статус judging."""
+        """Завершение второго раунда переводит дуэль в статус round_2_transition."""
         async with db_session.AsyncSessionLocal() as session:
             scenario = await _create_test_scenario(session)
             duel = await DuelService().create_duel(session, telegram_user_id=234, scenario=scenario)
@@ -246,8 +246,8 @@ class TestTimerExpiryHandling:
             assert updated_duel.current_round_number >= 1
 
     @pytest.mark.asyncio
-    async def test_timer_expiry_on_round_2_moves_to_judging(self, fresh_test_db) -> None:
-        """Истечение таймера во втором раунде переводит дуэль в состояние судейства."""
+    async def test_timer_expiry_on_round_2_moves_to_transition(self, fresh_test_db) -> None:
+        """Истечение таймера во втором раунде переводит дуэль в состояние round_2_transition."""
         async with db_session.AsyncSessionLocal() as session:
             scenario = await _create_test_scenario(session)
             duel = await DuelService().create_duel(session, telegram_user_id=789, scenario=scenario)

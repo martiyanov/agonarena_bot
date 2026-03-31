@@ -68,7 +68,7 @@ def _create_mock_message(from_user_id: int = 123, chat_id: int = 456) -> MagicMo
     return message
 
 
-def _create_mock_duel(user_id: int, status: str = "in_progress") -> Duel:
+def _create_mock_duel(user_id: int, status: str = "round_1_active") -> Duel:
     """Создаёт тестовый дуэль."""
     duel = Duel()
     duel.id = 999
@@ -92,7 +92,7 @@ class TestVoiceRoutingWithActiveDuel:
         message = _create_mock_message(from_user_id=123)
         PENDING_CUSTOM_SCENARIO_USERS.add(123)
 
-        mock_duel = _create_mock_duel(user_id=123, status="in_progress")
+        mock_duel = _create_mock_duel(user_id=123, status="round_1_active")
 
         with patch("app.bot.handlers.menu.TranscriptionService") as MockTranscriptionService, \
              patch("app.bot.handlers.menu.db_session") as mock_db_session, \
@@ -234,7 +234,7 @@ class TestAudioRoutingWithActiveDuel:
         message.audio = MagicMock(file_id="audio_file_123", file_name="audio.mp3")
         PENDING_CUSTOM_SCENARIO_USERS.add(123)
 
-        mock_duel = _create_mock_duel(user_id=123, status="in_progress")
+        mock_duel = _create_mock_duel(user_id=123, status="round_1_active")
 
         with patch("app.bot.handlers.menu.TranscriptionService") as MockTranscriptionService, \
              patch("app.bot.handlers.menu.db_session") as mock_db_session, \
@@ -274,8 +274,8 @@ class TestVoiceMidDuel:
         # Пользователь мог ранее нажать "Свой сценарий", но уже начал duel
         PENDING_CUSTOM_SCENARIO_USERS.add(555)
 
-        # Активный duel в состоянии in_progress
-        mock_duel = _create_mock_duel(user_id=555, status="in_progress")
+        # Активный duel в состоянии round_1_active
+        mock_duel = _create_mock_duel(user_id=555, status="round_1_active")
         mock_duel.current_round_number = 1
 
         with patch("app.bot.handlers.menu.TranscriptionService") as MockTranscriptionService, \

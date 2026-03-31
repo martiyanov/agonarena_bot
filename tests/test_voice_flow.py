@@ -68,7 +68,7 @@ def _create_mock_message(from_user_id: int = 123, chat_id: int = 456) -> MagicMo
     return message
 
 
-def _create_mock_duel(user_id: int, status: str = "in_progress", current_round: int = 1) -> Duel:
+def _create_mock_duel(user_id: int, status: str = "round_1_active", current_round: int = 1) -> Duel:
     """Создаёт тестовый дуэль."""
     duel = Duel()
     duel.id = 999
@@ -91,7 +91,7 @@ class TestVoiceInActiveDuel:
 
         message = _create_mock_message(from_user_id=123)
 
-        mock_duel = _create_mock_duel(user_id=123, status="in_progress", current_round=1)
+        mock_duel = _create_mock_duel(user_id=123, status="round_1_active", current_round=1)
 
         with patch("app.bot.handlers.menu.TranscriptionService") as MockTranscriptionService, \
              patch("app.bot.handlers.menu.db_session") as mock_db_session, \
@@ -127,7 +127,7 @@ class TestVoiceInActiveDuel:
 
         message = _create_mock_message(from_user_id=456)
 
-        mock_duel = _create_mock_duel(user_id=456, status="in_progress", current_round=2)
+        mock_duel = _create_mock_duel(user_id=456, status="round_2_active", current_round=2)
 
         with patch("app.bot.handlers.menu.TranscriptionService") as MockTranscriptionService, \
              patch("app.bot.handlers.menu.db_session") as mock_db_session, \
@@ -162,7 +162,7 @@ class TestVoiceInActiveDuel:
 
         message = _create_mock_message(from_user_id=789)
 
-        mock_duel = _create_mock_duel(user_id=789, status="in_progress", current_round=1)
+        mock_duel = _create_mock_duel(user_id=789, status="round_1_active", current_round=1)
 
         with patch("app.bot.handlers.menu.TranscriptionService") as MockTranscriptionService, \
              patch("app.bot.handlers.menu.db_session") as mock_db_session, \
@@ -295,7 +295,7 @@ class TestTranscriptionServiceIntegration:
         message = _create_mock_message(from_user_id=666)
         message.voice.file_id = "test_voice_file_123"
 
-        mock_duel = _create_mock_duel(user_id=666, status="in_progress")
+        mock_duel = _create_mock_duel(user_id=666, status="round_1_active")
 
         with patch("app.bot.handlers.menu.TranscriptionService") as MockTranscriptionService, \
              patch("app.bot.handlers.menu.db_session") as mock_db_session, \
@@ -326,7 +326,7 @@ class TestTranscriptionServiceIntegration:
 
         message = _create_mock_message(from_user_id=777)
 
-        mock_duel = _create_mock_duel(user_id=777, status="in_progress")
+        mock_duel = _create_mock_duel(user_id=777, status="round_1_active")
 
         with patch("app.bot.handlers.menu.TranscriptionService") as MockTranscriptionService, \
              patch("app.bot.handlers.menu.db_session") as mock_db_session, \
@@ -359,7 +359,7 @@ class TestTranscriptionServiceIntegration:
 
         message = _create_mock_message(from_user_id=888)
 
-        mock_duel = _create_mock_duel(user_id=888, status="in_progress")
+        mock_duel = _create_mock_duel(user_id=888, status="round_1_active")
 
         with patch("app.bot.handlers.menu.TranscriptionService") as MockTranscriptionService, \
              patch("app.bot.handlers.menu.db_session") as mock_db_session, \
@@ -394,7 +394,7 @@ class TestTranscriptionServiceIntegration:
 
         message = _create_mock_message(from_user_id=999)
 
-        mock_duel = _create_mock_duel(user_id=999, status="in_progress")
+        mock_duel = _create_mock_duel(user_id=999, status="round_1_active")
 
         expected_transcription = "точный текст из голосового сообщения"
 
@@ -438,7 +438,7 @@ class TestAudioMessageHandling:
         message.voice = None
         message.audio = MagicMock(file_id="audio_file_456", file_name="audio.mp3")
 
-        mock_duel = _create_mock_duel(user_id=101, status="in_progress")
+        mock_duel = _create_mock_duel(user_id=101, status="round_1_active")
 
         with patch("app.bot.handlers.menu.TranscriptionService") as MockTranscriptionService, \
              patch("app.bot.handlers.menu.db_session") as mock_db_session, \

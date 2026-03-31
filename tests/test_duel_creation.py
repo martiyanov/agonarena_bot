@@ -94,7 +94,7 @@ class TestDuelFromScenarioPicker:
             assert duel.id is not None
             assert duel.user_telegram_id == 123
             assert duel.scenario_id == scenario.id
-            assert duel.status in ["draft", "in_progress"]
+            assert duel.status == "round_1_active"
             assert duel.current_round_number >= 0
 
     @pytest.mark.asyncio
@@ -118,7 +118,7 @@ class TestDuelFromScenarioPicker:
 
     @pytest.mark.asyncio
     async def test_duel_has_correct_initial_status(self, fresh_test_db) -> None:
-        """Дуэль после создания имеет статус pending."""
+        """Дуэль после создания имеет статус round_1_active."""
         async with db_session.AsyncSessionLocal() as session:
             scenario = await _create_test_scenario(session)
             
@@ -128,7 +128,7 @@ class TestDuelFromScenarioPicker:
                 scenario=scenario
             )
 
-            assert duel.status in ["draft", "in_progress"]
+            assert duel.status == "round_1_active"
 
 
 class TestDuelFromCustomScenario:
@@ -165,7 +165,7 @@ class TestDuelFromCustomScenario:
             assert duel.id is not None
             assert duel.user_telegram_id == 999
             assert duel.scenario_id == custom_scenario.id
-            assert duel.status in ["draft", "in_progress"]
+            assert duel.status == "round_1_active"
 
     @pytest.mark.asyncio
     async def test_custom_scenario_preserves_all_attributes(self, fresh_test_db) -> None:

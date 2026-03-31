@@ -61,7 +61,7 @@ class RoundTimerService:
                     if duel is None or round_obj is None:
                         return
                     # Check for finished or transition states (user may have clicked inline button)
-                    if duel.status in ("finished", "judging", "round_1_transition", "round_2_transition"):
+                    if duel.status in ("finished", "round_1_transition", "round_2_transition"):
                         logger.info("round timer: duel already finished/transitioning (status=%s), skipping for duel=%s", duel.status, duel_id)
                         return
                     if round_obj.status != "in_progress":
@@ -93,7 +93,7 @@ class RoundTimerService:
             async with db_session.AsyncSessionLocal() as session:
                 duel_service = DuelService()
                 duel = await duel_service.get_duel(session, duel_id)
-                if duel is None or duel.status in ("finished", "judging", "round_1_transition", "round_2_transition"):
+                if duel is None or duel.status in ("finished", "round_1_transition", "round_2_transition"):
                     logger.info("round timer: skipping timeout message for duel=%s (status=%s)", duel_id, duel.status if duel else "None")
                     return
 

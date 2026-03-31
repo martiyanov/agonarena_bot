@@ -468,7 +468,7 @@ class TestJudgeResultsPersistence:
         async with db_session.AsyncSessionLocal() as session:
             # Создаём дуэль
             duel = Duel(
-                status="judging",
+                status="round_2_transition",
                 scenario_id=1,
                 user_telegram_id=123,
                 user_role_round1="Роль A",
