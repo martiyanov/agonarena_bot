@@ -1491,8 +1491,14 @@ async def show_main_menu(message: Message) -> None:
 async def handle_start_command(message: Message) -> None:
     user_id = message.from_user.id
     
-    # Clean up old scenario picker messages
-    await cleanup_scenario_messages(user_id, message)
+    # Acquire lock to prevent race conditions on rapid /start commands
+    if not await duel_lock_manager.acquire_user_lock(user_id, timeout=2.0):
+        # Silently ignore duplicate /start within 2 seconds
+        return
+    
+    try:
+        # Clean up old scenario picker messages
+        await cleanup_scenario_messages(user_id, message)
     
     # Check for active duel and show options
     async with db_session.AsyncSessionLocal() as session:
@@ -1520,8 +1526,10 @@ async def handle_start_command(message: Message) -> None:
             )
             return
     
-    # No active duel — show main menu
-    await show_main_menu(message)
+        # No active duel — show main menu
+        await show_main_menu(message)
+    finally:
+        duel_lock_manager.release_user_lock(user_id)
 
 
 @router.message(F.text.in_({RULES_BUTTON, RULES_BUTTON_LEGACY, SCENARIOS_BUTTON}))
