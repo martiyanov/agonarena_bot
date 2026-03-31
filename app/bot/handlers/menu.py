@@ -136,7 +136,7 @@ async def cleanup_scenario_messages(user_id: int, message: Message) -> None:
 
 
 async def _send_scenario_picker(message: Message, user_id: int | None = None) -> None:
-    """Send scenario picker, deleting any previous picker message for this user."""
+    """Send scenario picker, editing any previous picker message for this user if possible."""
     target_user_id = user_id or message.from_user.id
     
     async with db_session.AsyncSessionLocal() as session:
@@ -207,16 +207,27 @@ async def _send_scenario_picker(message: Message, user_id: int | None = None) ->
     else:
         page_title = f"Страница {page}\n\n"
     
-    # Delete previous scenario picker messages if exist
+    # Try to edit previous scenario picker message if exists
     prev_message_ids = _SCENARIO_PICKER_MESSAGE_IDS.get(target_user_id, [])
-    for prev_msg_id in prev_message_ids:
-        try:
-            await message.bot.delete_message(chat_id=message.chat.id, message_id=prev_msg_id)
-        except Exception:
-            # Message might already be deleted or too old to delete
-            pass
-    # Clear the list after deletion
-    _SCENARIO_PICKER_MESSAGE_IDS.pop(target_user_id, None)
+    if prev_message_ids:
+        # Try to edit the most recent message
+        for prev_msg_id in reversed(prev_message_ids):
+            try:
+                await message.bot.edit_message_text(
+                    chat_id=message.chat.id,
+                    message_id=prev_msg_id,
+                    text=f"{page_title}{scenarios_text}\n\n",
+                    parse_mode="HTML",
+                    reply_markup=markup
+                )
+                # Successfully edited, keep tracking this message
+                return
+            except Exception:
+                # Edit failed (message too old, different content type, etc.)
+                # Continue to try older messages or send new one
+                continue
+        # None of the previous messages could be edited, clear them
+        _SCENARIO_PICKER_MESSAGE_IDS.pop(target_user_id, None)
     
     # Send new message and track its ID
     sent_message = await message.answer(
@@ -278,7 +289,33 @@ async def _start_duel(message: Message, scenario_code: Union[str, None] = None) 
                 reset_keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="✓ Да, начать новый", callback_data=f"reset_and_start:{existing_duel.id}:{scenario_code or 'random'}")],
                     [InlineKeyboardButton(text="✗ Нет, продолжить текущий", callback_data=f"continue_current:{existing_duel.id}")]
-            ])
+                ])
+                
+                # Try to edit existing scenario picker message if exists
+                prev_message_ids = _SCENARIO_PICKER_MESSAGE_IDS.get(user_id, [])
+                if prev_message_ids:
+                    for prev_msg_id in reversed(prev_message_ids):
+                        try:
+                            await message.bot.edit_message_text(
+                                chat_id=message.chat.id,
+                                message_id=prev_msg_id,
+                                text="⚠️ <b>У вас уже есть активный поединок</b>\n\n"
+                                    f"<b>Текущий поединок:</b>\n"
+                                    f"• Сценарий: {scenario_title}\n"
+                                    f"• {round_info}\n"
+                                    f"• {role_info}\n"
+                                    f"• {turns_info}\n\n"
+                                    f"Начать новый поединок с выбранным сценарием?",
+                                parse_mode="HTML",
+                                reply_markup=reset_keyboard
+                            )
+                            return
+                        except Exception:
+                            continue
+                    # None could be edited, clear the list
+                    _SCENARIO_PICKER_MESSAGE_IDS.pop(user_id, None)
+                
+                # Send new message if edit failed
                 sent_message = await message.answer(
                     "⚠️ <b>У вас уже есть активный поединок</b>\n\n"
                     f"<b>Текущий поединок:</b>\n"
@@ -807,15 +844,23 @@ async def show_scenarios_page(callback: CallbackQuery) -> None:
         else:
             page_title = f"Страница {page_num}\n\n"
         
-        # Delete old message and send new one to avoid stale keyboard issues
+        # Try to edit the existing message instead of delete+send
         user_id = callback.from_user.id
         chat_id = callback.message.chat.id
         old_message_id = callback.message.message_id
         
         try:
-            await callback.message.delete()
+            await callback.message.edit_text(
+                text=f"{page_title}{scenarios_text}\n\n",
+                parse_mode="HTML",
+                reply_markup=markup
+            )
+            # Track the edited message ID
+            track_scenario_message(user_id, old_message_id)
+            return
         except Exception:
-            # If we can't delete, try to edit instead
+            # Edit failed (message too old, different content type, etc.)
+            # Fall back to sending a new message
             pass
         
         # Send new message with fresh keyboard
