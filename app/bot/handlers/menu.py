@@ -243,8 +243,13 @@ async def show_scenarios(message: Message) -> None:
     await _send_scenario_picker(message)
 
 
-async def _start_duel(message: Message, scenario_code: Union[str, None] = None, callback: CallbackQuery | None = None) -> None:
-    user_id = message.from_user.id
+async def _start_duel(message: Message, scenario_code: Union[str, None] = None, callback: CallbackQuery | None = None, user_id: int | None = None) -> None:
+    # Если user_id не передан, определяем его из callback или message
+    if user_id is None:
+        if callback is not None:
+            user_id = callback.from_user.id
+        else:
+            user_id = message.from_user.id
     
     # Clean up old scenario picker messages
     await cleanup_scenario_messages(user_id, message)
@@ -750,7 +755,7 @@ async def start_duel_from_menu(callback: CallbackQuery) -> None:
 async def start_duel_from_scenario_button(callback: CallbackQuery) -> None:
     scenario_code = callback.data.split(":", 1)[1]
     await callback.answer(text="OK")
-    await _start_duel(callback.message, scenario_code=scenario_code, callback=callback)
+    await _start_duel(callback.message, scenario_code=scenario_code, callback=callback, user_id=callback.from_user.id)
 
 
 @router.callback_query(F.data.startswith("pick_scenario:"))
@@ -760,7 +765,7 @@ async def start_duel_from_pick_scenario(callback: CallbackQuery) -> None:
     
     # Если выбран случайный сценарий
     if scenario_selector == "random":
-        await _start_duel(callback.message, callback=callback)
+        await _start_duel(callback.message, callback=callback, user_id=callback.from_user.id)
         return
     
     # Если выбран ID сценария
@@ -769,7 +774,7 @@ async def start_duel_from_pick_scenario(callback: CallbackQuery) -> None:
         async with db_session.AsyncSessionLocal() as session:
             scenario = await DuelService().get_scenario_by_id(session, scenario_id)
             if scenario and scenario.is_active:
-                await _start_duel(callback.message, scenario_code=scenario.code, callback=callback)
+                await _start_duel(callback.message, scenario_code=scenario.code, callback=callback, user_id=callback.from_user.id)
             else:
                 await callback.message.answer("Выбранный сценарий больше не доступен.")
     except ValueError:
@@ -1056,9 +1061,9 @@ async def reset_and_start_duel(callback: CallbackQuery) -> None:
     
     # Start new duel with selected scenario
     if scenario_code == "random":
-        await _start_duel(callback.message)
+        await _start_duel(callback.message, user_id=callback.from_user.id)
     else:
-        await _start_duel(callback.message, scenario_code=scenario_code)
+        await _start_duel(callback.message, scenario_code=scenario_code, user_id=callback.from_user.id)
 
 
 @router.callback_query(F.data.startswith("continue_current:"))
