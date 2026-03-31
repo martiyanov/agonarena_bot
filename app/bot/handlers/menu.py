@@ -106,9 +106,9 @@ def _format_final_verdict(judge_service: JudgeService, verdicts: list, final_ver
             
             # Add round-specific comments if available
             if hasattr(v, 'round1_comment') and v.round1_comment:
-                lines.append(f"  Раунд 1: {escape(v.round1_comment)}")
+                lines.append(f"  {escape(v.round1_comment)}")
             if hasattr(v, 'round2_comment') and v.round2_comment:
-                lines.append(f"  Раунд 2: {escape(v.round2_comment)}")
+                lines.append(f"  {escape(v.round2_comment)}")
 
     return "\n".join(lines)
 
@@ -1315,9 +1315,9 @@ async def _show_results(target_message: Message) -> None:
             
             # Add round-specific comments if available
             if item.round1_comment:
-                lines.append(f"  Раунд 1: {escape(item.round1_comment)}")
+                lines.append(f"  {escape(item.round1_comment)}")
             if item.round2_comment:
-                lines.append(f"  Раунд 2: {escape(item.round2_comment)}")
+                lines.append(f"  {escape(item.round2_comment)}")
     if duel.final_verdict:
         lines.append(f"\n<b>Краткий итог</b>\n{escape(duel.final_verdict.splitlines()[0])}")
 
