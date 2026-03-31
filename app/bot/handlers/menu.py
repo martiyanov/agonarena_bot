@@ -1370,9 +1370,15 @@ async def handle_feedback_message(message: Message) -> None:
 
 def _get_version() -> str:
     """Get version from VERSION file or git."""
-    version_file = Path(__file__).parent.parent.parent.parent / "VERSION"
-    if version_file.exists():
-        return version_file.read_text().strip()
+    # Try multiple paths for different environments
+    paths = [
+        Path("/app/VERSION"),  # Docker container
+        Path(__file__).parent.parent.parent.parent / "VERSION",  # Development
+        Path.cwd() / "VERSION",  # Current directory
+    ]
+    for version_file in paths:
+        if version_file.exists():
+            return version_file.read_text().strip()
     return "unknown"
 
 
