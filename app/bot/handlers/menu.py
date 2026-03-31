@@ -90,25 +90,69 @@ def _timer_hint(seconds: int) -> str:
 
 
 def _format_final_verdict(judge_service: JudgeService, verdicts: list, final_verdict: str) -> str:
-    lines: list[str] = [
-        "<b>Поединок завершён</b>",
-    ]
+    """Форматирует итоговое решение судей с улучшенной визуальной структурой."""
+    lines: list[str] = []
+    labels = JudgeService.JUDGE_LABELS
 
+    # Заголовок
+    lines.append("🏆 <b>ИТОГИ ПОЕДИНКА</b>")
+
+    # Победитель (из финального вердикта или определяем по судьям)
     if final_verdict:
-        lines.extend(["", escape(final_verdict)])
-
-    if verdicts:
-        lines.append("\n<b>Мнение судей</b>")
-        labels = JudgeService.JUDGE_LABELS
+        lines.append("")
+        lines.append(f"<b>Победитель:</b> {escape(final_verdict)}")
+    elif verdicts:
+        # Определяем победителя по мнению большинства судей
+        winner_counts = {"user": 0, "ai": 0, "draw": 0}
         for v in verdicts:
-            label = labels.get(v.judge_type, v.judge_type)
-            lines.append(f"• <b>{escape(label.title())}</b>: {escape(v.comment)}")
-            
-            # Add round-specific comments if available
-            if hasattr(v, 'round1_comment') and v.round1_comment:
-                lines.append(f"  {escape(v.round1_comment)}")
-            if hasattr(v, 'round2_comment') and v.round2_comment:
-                lines.append(f"  {escape(v.round2_comment)}")
+            winner_counts[v.winner] = winner_counts.get(v.winner, 0) + 1
+        
+        if winner_counts["user"] > winner_counts["ai"]:
+            winner_text = "Вы победили"
+        elif winner_counts["ai"] > winner_counts["user"]:
+            winner_text = "Победил AI"
+        else:
+            winner_text = "Ничья"
+        lines.append("")
+        lines.append(f"<b>Победитель:</b> {winner_text}")
+
+    # Группируем комментарии по раундам
+    round1_comments = []
+    round2_comments = []
+    
+    for v in verdicts:
+        label = labels.get(v.judge_type, v.judge_type)
+        if hasattr(v, 'round1_comment') and v.round1_comment:
+            round1_comments.append((label, v.round1_comment))
+        if hasattr(v, 'round2_comment') and v.round2_comment:
+            round2_comments.append((label, v.round2_comment))
+
+    # Раунд 1
+    if round1_comments:
+        lines.append("")
+        lines.append("📊 <b>РАУНД 1</b>")
+        for i, (label, comment) in enumerate(round1_comments):
+            is_last = i == len(round1_comments) - 1
+            prefix = "└" if is_last else "├"
+            lines.append(f"{prefix} <b>{escape(label.title())}:</b> {escape(comment)}")
+
+    # Раунд 2
+    if round2_comments:
+        lines.append("")
+        lines.append("📊 <b>РАУНД 2</b>")
+        for i, (label, comment) in enumerate(round2_comments):
+            is_last = i == len(round2_comments) - 1
+            prefix = "└" if is_last else "├"
+            lines.append(f"{prefix} <b>{escape(label.title())}:</b> {escape(comment)}")
+
+    # Общие выводы (общие комментарии судей)
+    general_comments = [(labels.get(v.judge_type, v.judge_type), v.comment) 
+                       for v in verdicts if v.comment]
+    if general_comments:
+        lines.append("")
+        lines.append("🗣 <b>ОБЩИЕ ВЫВОДЫ</b>")
+        for label, comment in general_comments:
+            lines.append(f"• <b>{escape(label.title())}:</b> {escape(comment)}")
 
     return "\n".join(lines)
 
