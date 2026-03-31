@@ -243,11 +243,18 @@ async def show_scenarios(message: Message) -> None:
     await _send_scenario_picker(message)
 
 
-async def _start_duel(message: Message, scenario_code: Union[str, None] = None) -> None:
+async def _start_duel(message: Message, scenario_code: Union[str, None] = None, callback: CallbackQuery | None = None) -> None:
     user_id = message.from_user.id
     
     # Clean up old scenario picker messages
     await cleanup_scenario_messages(user_id, message)
+    
+    # Also delete the callback message if provided (handles stale messages from before tracking)
+    if callback and callback.message:
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
     
     # Acquire per-user lock to prevent double duel creation
     if not await duel_lock_manager.acquire_user_lock(user_id, timeout=30.0):
@@ -741,7 +748,7 @@ async def start_duel_from_menu(callback: CallbackQuery) -> None:
 async def start_duel_from_scenario_button(callback: CallbackQuery) -> None:
     scenario_code = callback.data.split(":", 1)[1]
     await callback.answer(text="OK")
-    await _start_duel(callback.message, scenario_code=scenario_code)
+    await _start_duel(callback.message, scenario_code=scenario_code, callback=callback)
 
 
 @router.callback_query(F.data.startswith("pick_scenario:"))
@@ -751,7 +758,7 @@ async def start_duel_from_pick_scenario(callback: CallbackQuery) -> None:
     
     # Если выбран случайный сценарий
     if scenario_selector == "random":
-        await _start_duel(callback.message)
+        await _start_duel(callback.message, callback=callback)
         return
     
     # Если выбран ID сценария
@@ -760,7 +767,7 @@ async def start_duel_from_pick_scenario(callback: CallbackQuery) -> None:
         async with db_session.AsyncSessionLocal() as session:
             scenario = await DuelService().get_scenario_by_id(session, scenario_id)
             if scenario and scenario.is_active:
-                await _start_duel(callback.message, scenario_code=scenario.code)
+                await _start_duel(callback.message, scenario_code=scenario.code, callback=callback)
             else:
                 await callback.message.answer("Выбранный сценарий больше не доступен.")
     except ValueError:
@@ -1361,6 +1368,14 @@ async def handle_feedback_message(message: Message) -> None:
         logger.error("Feedback delivery failed: %s", e)
 
 
+def _get_version() -> str:
+    """Get version from VERSION file or git."""
+    version_file = Path(__file__).parent.parent.parent.parent / "VERSION"
+    if version_file.exists():
+        return version_file.read_text().strip()
+    return "unknown"
+
+
 async def show_main_menu(message: Message) -> None:
     # Check if user has active duel
     async with db_session.AsyncSessionLocal() as session:
@@ -1374,6 +1389,9 @@ async def show_main_menu(message: Message) -> None:
     from app.bot.keyboards.main_menu import build_main_menu
     markup = build_main_menu(has_active_duel=has_active_duel)
     
+    version = _get_version()
+    version_line = f"\n\n🤖 Agon Arena v{version}"
+    
     if has_active_duel:
         # Text for in_duel state
         menu_text = (
@@ -1384,13 +1402,15 @@ async def show_main_menu(message: Message) -> None:
     else:
         # Text for idle state
         menu_text = (
-            "Добро пожаловать в Agon Arena.\n\n"
+            "👋 Привет! Я Agon Arena.\n\n"
             "Здесь можно тренировать управленческие поединки:\n"
             "— 2 раунда\n"
             "— смена ролей\n"
             "— разбор от 3 судей\n\n"
             "Выберите сценарий или начните случайный поединок."
         )
+    
+    menu_text += version_line
     
     await message.answer(
         menu_text,
