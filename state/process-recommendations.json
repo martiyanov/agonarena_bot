@@ -1,0 +1,56 @@
+{
+  "timestamp": "2026-03-29T10:27:43.962385",
+  "task_flow": {
+    "total_tasks": 1,
+    "tasks_with_bugs": 1,
+    "bug_rate": 100.0,
+    "manual_test_fail_rate": 100.0,
+    "stage_times": {}
+  },
+  "bottlenecks": [],
+  "patterns": {
+    "frequent_issues": [
+      {
+        "keyword": "баг",
+        "count": 1
+      },
+      {
+        "keyword": "фикс",
+        "count": 1
+      },
+      {
+        "keyword": "тест",
+        "count": 1
+      },
+      {
+        "keyword": "ошибка",
+        "count": 1
+      }
+    ],
+    "repeated_tasks": [],
+    "time_wasters": []
+  },
+  "recommendations": [
+    {
+      "priority": "high",
+      "category": "testing",
+      "issue": "100.0% задач проваливают ручное тестирование",
+      "recommendation": "Перенести ручное тестирование раньше (после DEV, до TEST). Добавить E2E тесты для UI.",
+      "estimated_impact": "Сокращение времени на 30-50%"
+    },
+    {
+      "priority": "medium",
+      "category": "quality",
+      "issue": "100.0% задач имеют баги",
+      "recommendation": "Добавить code review перед TEST. Увеличить покрытие unit тестами.",
+      "estimated_impact": "Снижение багов на 40-60%"
+    },
+    {
+      "priority": "medium",
+      "category": "patterns",
+      "issue": "Частые темы: баг, фикс, тест",
+      "recommendation": "Проанализировать корневые причины. Добавить预防措施.",
+      "estimated_impact": "Улучшение качества процесса"
+    }
+  ]
+}

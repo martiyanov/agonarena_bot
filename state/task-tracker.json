@@ -1,0 +1,52 @@
+{
+  "activeTasks": [],
+  "completedTasks": [
+    {
+      "id": "AG-017",
+      "title": "Inline-кнопка 'Завершить раунд'",
+      "status": "ready_for_final_test",
+      "stages": {
+        "PM": "done",
+        "UX": "done",
+        "ARCH": "done",
+        "DEV": "done",
+        "DEV_FIX": "done",
+        "MANUAL_TEST_1": "failed (2 bugs)",
+        "DEV_FIX_2": "done",
+        "HANDLER_TESTS": "done (4/4 PASS)",
+        "MANUAL_TEST_2": "pending"
+      },
+      "bugsFound": 2,
+      "bugsFixed": 2,
+      "completedAt": "2026-03-29T10:34:00Z"
+    }
+  ],
+  "processImprovements": [
+    {
+      "id": 1,
+      "recommendation": "MANUAL TEST раньше (после DEV, до TEST)",
+      "status": "implemented",
+      "file": "crew/SUBAGENT_WORKFLOW.md",
+      "expectedImpact": "-30-50% времени задачи"
+    },
+    {
+      "id": 2,
+      "recommendation": "CODE_REVIEW этап перед TEST",
+      "status": "implemented",
+      "file": "crew/SUBAGENT_WORKFLOW.md",
+      "expectedImpact": "-40-60% багов"
+    },
+    {
+      "id": 3,
+      "recommendation": "Bug Registry",
+      "status": "implemented",
+      "file": "state/bug-registry.md",
+      "expectedImpact": "Улучшение качества процесса"
+    }
+  ],
+  "config": {
+    "checkIntervalMinutes": 10,
+    "warnAfterMinutes": 30,
+    "escalateAfterMinutes": 60
+  }
+}

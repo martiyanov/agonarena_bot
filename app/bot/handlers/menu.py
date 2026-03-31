@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import random
@@ -26,6 +27,7 @@ from app.services import (
     TranscriptionService,
 )
 from app.services.round_timer_service import round_timer_service
+from app.utils.locks import duel_lock_manager
 
 router = Router()
 
@@ -193,84 +195,104 @@ async def show_scenarios(message: Message) -> None:
 
 
 async def _start_duel(message: Message, scenario_code: Union[str, None] = None) -> None:
-    async with db_session.AsyncSessionLocal() as session:
-        duel_service = DuelService()
-        
-        # Check if user already has an active duel
-        existing_duel = await duel_service.get_latest_duel_for_user(
-            session, telegram_user_id=message.from_user.id
+    user_id = message.from_user.id
+    
+    # Acquire per-user lock to prevent double duel creation
+    if not await duel_lock_manager.acquire_user_lock(user_id, timeout=30.0):
+        await message.answer(
+            "⚠️ <b>Подождите</b>\n\n"
+            "Предыдущий запрос всё ещё обрабатывается. Попробуйте через несколько секунд.",
+            parse_mode="HTML"
         )
-        if existing_duel and existing_duel.status not in ("finished", "cancelled"):
-            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+        return
+    
+    try:
+        async with db_session.AsyncSessionLocal() as session:
+            duel_service = DuelService()
             
-            # Get duel details
-            scenario = await duel_service.get_scenario_by_id(session, existing_duel.scenario_id)
-            rounds = await duel_service.get_duel_rounds(session, existing_duel.id)
-            current_round = next((r for r in rounds if r.round_number == existing_duel.current_round_number), None)
-            
-            # Count turns in current round
-            messages = await duel_service.list_messages_for_round(
-                session, duel_id=existing_duel.id, round_number=existing_duel.current_round_number
+            # Check if user already has an active duel
+            existing_duel = await duel_service.get_latest_duel_for_user(
+                session, telegram_user_id=user_id
             )
-            turn_count = len([m for m in messages if m.author == "user"])
-            
-            # Build duel details text
-            scenario_title = escape(scenario.title) if scenario else "Неизвестный сценарий"
-            round_info = f"Раунд {existing_duel.current_round_number} из 2"
-            role_info = f"Роль: {escape(current_round.user_role) if current_round else 'N/A'}"
-            turns_info = f"Сделано ходов: {turn_count}"
-            
-            reset_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="✓ Да, начать новый", callback_data=f"reset_and_start:{existing_duel.id}:{scenario_code or 'random'}")],
-                [InlineKeyboardButton(text="✗ Нет, продолжить текущий", callback_data=f"continue_current:{existing_duel.id}")]
+            if existing_duel and existing_duel.status not in ("finished", "cancelled"):
+                from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+                
+                # Get duel details
+                scenario = await duel_service.get_scenario_by_id(session, existing_duel.scenario_id)
+                rounds = await duel_service.get_duel_rounds(session, existing_duel.id)
+                current_round = next((r for r in rounds if r.round_number == existing_duel.current_round_number), None)
+                
+                # Count turns in current round
+                messages = await duel_service.list_messages_for_round(
+                    session, duel_id=existing_duel.id, round_number=existing_duel.current_round_number
+                )
+                turn_count = len([m for m in messages if m.author == "user"])
+                
+                # Build duel details text
+                scenario_title = escape(scenario.title) if scenario else "Неизвестный сценарий"
+                round_info = f"Раунд {existing_duel.current_round_number} из 2"
+                role_info = f"Роль: {escape(current_round.user_role) if current_round else 'N/A'}"
+                turns_info = f"Сделано ходов: {turn_count}"
+                
+                reset_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="✓ Да, начать новый", callback_data=f"reset_and_start:{existing_duel.id}:{scenario_code or 'random'}")],
+                    [InlineKeyboardButton(text="✗ Нет, продолжить текущий", callback_data=f"continue_current:{existing_duel.id}")]
             ])
-            await message.answer(
-                "⚠️ <b>У вас уже есть активный поединок</b>\n\n"
-                f"<b>Текущий поединок:</b>\n"
-                f"• Сценарий: {scenario_title}\n"
-                f"• {round_info}\n"
-                f"• {role_info}\n"
-                f"• {turns_info}\n\n"
-                f"Начать новый поединок с выбранным сценарием?",
-                parse_mode="HTML",
-                reply_markup=reset_keyboard
+                await message.answer(
+                    "⚠️ <b>У вас уже есть активный поединок</b>\n\n"
+                    f"<b>Текущий поединок:</b>\n"
+                    f"• Сценарий: {scenario_title}\n"
+                    f"• {round_info}\n"
+                    f"• {role_info}\n"
+                    f"• {turns_info}\n\n"
+                    f"Начать новый поединок с выбранным сценарием?",
+                    parse_mode="HTML",
+                    reply_markup=reset_keyboard
+                )
+                return
+            
+            if scenario_code:
+                scenario = await duel_service.get_scenario_by_code(session, scenario_code)
+            else:
+                scenarios = await ScenarioService().list_active(session)
+                scenario = random.choice(scenarios) if scenarios else None
+
+            if scenario is None:
+                await message.answer("Не смог подобрать сценарий для старта. Попробуйте ещё раз позже.")
+                return
+
+            duel = await duel_service.create_duel(session, telegram_user_id=user_id, scenario=scenario)
+            rounds = await duel_service.get_duel_rounds(session, duel.id)
+            
+            # Log duel creation for debugging race conditions
+            logger.info(
+                f"[DuelCreated] user_id={user_id}, duel_id={duel.id}, "
+                f"status={duel.status}, scenario={scenario.code}"
             )
-            return
+
+        round_1 = rounds[0]
+        # Single message with all duel start information
+        start_text = "\n".join([
+            "🏁 <b>Поединок начался</b>",
+            f"Сценарий: {escape(scenario.title)}",
+            f"Раунд 1 из 2",
+            "",
+            f"Вы — {escape(round_1.user_role)}",
+            f"Соперник — {escape(round_1.ai_role)}",
+            "",
+            "Первая реплика соперника:",
+            f'"{escape(round_1.opening_line)}"',
+            "",
+            "Ответьте текстом или голосом от своей роли.",
+        ])
         
-        if scenario_code:
-            scenario = await duel_service.get_scenario_by_code(session, scenario_code)
-        else:
-            scenarios = await ScenarioService().list_active(session)
-            scenario = random.choice(scenarios) if scenarios else None
-
-        if scenario is None:
-            await message.answer("Не смог подобрать сценарий для старта. Попробуйте ещё раз позже.")
-            return
-
-        duel = await duel_service.create_duel(session, telegram_user_id=message.from_user.id, scenario=scenario)
-        rounds = await duel_service.get_duel_rounds(session, duel.id)
-
-    round_1 = rounds[0]
-    # Single message with all duel start information
-    start_text = "\n".join([
-        "🏁 <b>Поединок начался</b>",
-        f"Сценарий: {escape(scenario.title)}",
-        f"Раунд 1 из 2",
-        "",
-        f"Вы — {escape(round_1.user_role)}",
-        f"Соперник — {escape(round_1.ai_role)}",
-        "",
-        "Первая реплика соперника:",
-        f'"{escape(round_1.opening_line)}"',
-        "",
-        "Ответьте текстом или голосом от своей роли.",
-    ])
-    
-    # Use the in_duel keyboard for the newly started duel
-    from app.bot.keyboards.main_menu import build_main_menu
-    markup = build_main_menu(has_active_duel=True)
-    
-    await message.answer(start_text, parse_mode="HTML", reply_markup=markup)
+        # Use the in_duel keyboard for the newly started duel
+        from app.bot.keyboards.main_menu import build_main_menu
+        markup = build_main_menu(has_active_duel=True)
+        
+        await message.answer(start_text, parse_mode="HTML", reply_markup=markup)
+    finally:
+        duel_lock_manager.release_user_lock(user_id)
 
 
 async def _build_custom_scenario_from_text(raw_text: str) -> dict:
@@ -417,74 +439,101 @@ async def _run_turn(message: Message, user_text: str, *, recognized_from_voice: 
         await message.answer("Не получилось прочитать реплику. Попробуйте ещё раз.")
         return
 
+    user_id = message.from_user.id
+    
+    # First, get the duel to acquire per-duel lock
     async with db_session.AsyncSessionLocal() as session:
         duel_service = DuelService()
-        opponent_service = OpponentService()
-
-        duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=message.from_user.id)
+        duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=user_id)
         if duel is None:
             await message.answer(f"Сейчас у вас нет активного поединка. Нажмите «{START_BUTTON}».")
             return
         if duel.status == "finished":
             await message.answer(f"Последний поединок уже завершён. Чтобы начать заново, нажмите «{START_BUTTON}».")
             return
+        duel_id = duel.id
+    
+    # Acquire per-duel lock to prevent parallel turn processing
+    if not await duel_lock_manager.acquire_duel_lock(duel_id, timeout=30.0):
+        await message.answer(
+            "⚠️ <b>Подождите</b>\n\n"
+            "Предыдущий ход всё ещё обрабатывается. Попробуйте через несколько секунд.",
+            parse_mode="HTML"
+        )
+        return
+    
+    try:
+        async with db_session.AsyncSessionLocal() as session:
+            duel_service = DuelService()
+            opponent_service = OpponentService()
 
-        scenario = await duel_service.get_scenario_by_id(session, duel.scenario_id)
-        round_obj = await duel_service.get_round(session, duel_id=duel.id, round_number=duel.current_round_number)
-        if round_obj is None:
-            await message.answer("Не нашёл текущий раунд. Лучше начать новый поединок.")
-            return
+            # Re-fetch duel after acquiring lock to get fresh state
+            duel = await duel_service.get_duel(session, duel_id)
+            if duel is None:
+                await message.answer(f"Сейчас у вас нет активного поединка. Нажмите «{START_BUTTON}».")
+                return
+            if duel.status == "finished":
+                await message.answer(f"Последний поединок уже завершён. Чтобы начать заново, нажмите «{START_BUTTON}».")
+                return
 
-        await duel_service.ensure_round_started(duel, round_obj)
-        await session.commit()
+            scenario = await duel_service.get_scenario_by_id(session, duel.scenario_id)
+            round_obj = await duel_service.get_round(session, duel_id=duel.id, round_number=duel.current_round_number)
+            if round_obj is None:
+                await message.answer("Не нашёл текущий раунд. Лучше начать новый поединок.")
+                return
 
-        seconds_left = duel_service.get_seconds_left(duel, round_obj)
-        if seconds_left is not None and seconds_left > 0:
-            round_timer_service.schedule(
-                chat_id=message.chat.id,
+            await duel_service.ensure_round_started(duel, round_obj)
+            await session.commit()
+
+            seconds_left = duel_service.get_seconds_left(duel, round_obj)
+            if seconds_left is not None and seconds_left > 0:
+                round_timer_service.schedule(
+                    chat_id=message.chat.id,
+                    duel_id=duel.id,
+                    round_number=round_obj.round_number,
+                    delay_seconds=seconds_left,
+                )
+
+            if duel_service.is_round_expired(duel, round_obj):
+                await duel_service.complete_round(duel, round_obj)
+                await session.commit()
+                if round_obj.round_number == 1:
+                    await message.answer(f"⏱ Время первого раунда вышло. Нажмите «{END_ROUND_BUTTON}», чтобы завершить раунд и перейти дальше.")
+                else:
+                    await message.answer(f"⏱ Время второго раунда вышло. Нажмите «{END_ROUND_BUTTON}», чтобы завершить раунд и получить итог.")
+                return
+
+            await duel_service.add_message(
+                session,
                 duel_id=duel.id,
                 round_number=round_obj.round_number,
-                delay_seconds=seconds_left,
+                author="user",
+                content=clean_text,
             )
 
-        if duel_service.is_round_expired(duel, round_obj):
-            await duel_service.complete_round(duel, round_obj)
+            history = await duel_service.list_messages_for_round(session, duel_id=duel.id, round_number=round_obj.round_number)
+            context = OpponentTurnContext(
+                scenario_title=scenario.title if scenario else "",
+                scenario_description=scenario.description if scenario else "",
+                round_number=round_obj.round_number,
+                user_role=round_obj.user_role,
+                ai_role=round_obj.ai_role,
+                opening_line=round_obj.opening_line,
+                history=history,
+            )
+            ai_reply = await opponent_service.generate_reply(context)
+            seconds_left = duel_service.get_seconds_left(duel, round_obj)
+
+            await duel_service.add_message(
+                session,
+                duel_id=duel.id,
+                round_number=round_obj.round_number,
+                author="ai",
+                content=ai_reply,
+            )
             await session.commit()
-            if round_obj.round_number == 1:
-                await message.answer(f"⏱ Время первого раунда вышло. Нажмите «{END_ROUND_BUTTON}», чтобы завершить раунд и перейти дальше.")
-            else:
-                await message.answer(f"⏱ Время второго раунда вышло. Нажмите «{END_ROUND_BUTTON}», чтобы завершить раунд и получить итог.")
-            return
-
-        await duel_service.add_message(
-            session,
-            duel_id=duel.id,
-            round_number=round_obj.round_number,
-            author="user",
-            content=clean_text,
-        )
-
-        history = await duel_service.list_messages_for_round(session, duel_id=duel.id, round_number=round_obj.round_number)
-        context = OpponentTurnContext(
-            scenario_title=scenario.title if scenario else "",
-            scenario_description=scenario.description if scenario else "",
-            round_number=round_obj.round_number,
-            user_role=round_obj.user_role,
-            ai_role=round_obj.ai_role,
-            opening_line=round_obj.opening_line,
-            history=history,
-        )
-        ai_reply = await opponent_service.generate_reply(context)
-        seconds_left = duel_service.get_seconds_left(duel, round_obj)
-
-        await duel_service.add_message(
-            session,
-            duel_id=duel.id,
-            round_number=round_obj.round_number,
-            author="ai",
-            content=ai_reply,
-        )
-        await session.commit()
+    finally:
+        duel_lock_manager.release_duel_lock(duel_id)
 
     # Removed timer from turn messages according to UX requirements
     # Keep track of seconds_left for potential use in other parts of the function
@@ -987,15 +1036,30 @@ async def back_to_menu_callback(callback: CallbackQuery) -> None:
 
 async def _process_end_round(target_message: Message) -> None:
     user_id = target_message.from_user.id
-    if user_id in ACTION_IN_PROGRESS_USERS:
-        await target_message.answer("Действие уже выполняется. Подождите пару секунд.")
+    
+    # First, get the duel to acquire per-duel lock
+    async with db_session.AsyncSessionLocal() as session:
+        duel_service = DuelService()
+        duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=user_id)
+        if duel is None:
+            await target_message.answer(f"Сейчас у вас нет активного поединка. Нажмите «{START_BUTTON}».")
+            return
+        duel_id = duel.id
+    
+    # Acquire per-duel lock to prevent double round completion
+    if not await duel_lock_manager.acquire_duel_lock(duel_id, timeout=30.0):
+        await target_message.answer(
+            "⚠️ <b>Подождите</b>\n\n"
+            "Предыдущий запрос всё ещё обрабатывается. Попробуйте через несколько секунд.",
+            parse_mode="HTML"
+        )
         return
-
-    ACTION_IN_PROGRESS_USERS.add(user_id)
+    
     try:
         async with db_session.AsyncSessionLocal() as session:
             duel_service = DuelService()
-            duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=user_id)
+            # Re-fetch duel after acquiring lock to get fresh state
+            duel = await duel_service.get_duel(session, duel_id)
             if duel is None:
                 await target_message.answer(f"Сейчас у вас нет активного поединка. Нажмите «{START_BUTTON}».")
                 return
@@ -1043,7 +1107,7 @@ async def _process_end_round(target_message: Message) -> None:
 
             await target_message.answer("Действие уже выполнено или сейчас недоступно.")
     finally:
-        ACTION_IN_PROGRESS_USERS.discard(user_id)
+        duel_lock_manager.release_duel_lock(duel_id)
 
 
 async def _finish_duel_from_menu(message: Message) -> None:
@@ -1285,6 +1349,37 @@ async def _show_rules(target_message: Message) -> None:
     )
 
 
+async def _get_active_duel_with_retry(telegram_user_id: int, max_retries: int = 3, delay_sec: float = 0.1) -> tuple:
+    """Get active duel with retry logic to handle race conditions after duel creation.
+    
+    Returns: (duel, has_active_duel) tuple
+    """
+    duel_service = DuelService()
+    
+    for attempt in range(max_retries):
+        async with db_session.AsyncSessionLocal() as session:
+            duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=telegram_user_id)
+            has_active_duel = duel is not None and duel.status not in ("finished", "cancelled")
+            
+            # Log for debugging
+            duel_id = duel.id if duel else None
+            duel_status = duel.status if duel else None
+            logger.info(
+                f"[RaceConditionDebug] Attempt {attempt + 1}/{max_retries}: "
+                f"user_id={telegram_user_id}, duel_id={duel_id}, status={duel_status}, "
+                f"has_active_duel={has_active_duel}"
+            )
+            
+            if has_active_duel:
+                return duel, True
+            
+            # If no active duel found and we have retries left, wait and try again
+            if attempt < max_retries - 1:
+                await asyncio.sleep(delay_sec)
+    
+    return duel, False
+
+
 @router.message(F.voice)
 async def process_voice_turn(message: Message) -> None:
     transcription_service = TranscriptionService()
@@ -1310,10 +1405,8 @@ async def process_voice_turn(message: Message) -> None:
 
     # === ЕДИНЫЙ ВХОД В DUEL-FLOW ===
     # Активный duel проверяется ПЕРВЫМ — это абсолютный приоритет
-    async with db_session.AsyncSessionLocal() as session:
-        duel_service = DuelService()
-        duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=message.from_user.id)
-        has_active_duel = duel is not None and duel.status not in ("finished", "cancelled")
+    # Используем retry логику для предотвращения race condition
+    duel, has_active_duel = await _get_active_duel_with_retry(message.from_user.id)
 
     if has_active_duel:
         # Голосовое в активном duel → продолжаем текущий раунд
@@ -1355,10 +1448,8 @@ async def process_audio_turn(message: Message) -> None:
 
     # === ЕДИНЫЙ ВХОД В DUEL-FLOW ===
     # Активный duel проверяется ПЕРВЫМ — это абсолютный приоритет
-    async with db_session.AsyncSessionLocal() as session:
-        duel_service = DuelService()
-        duel = await duel_service.get_latest_duel_for_user(session, telegram_user_id=message.from_user.id)
-        has_active_duel = duel is not None and duel.status not in ("finished", "cancelled")
+    # Используем retry логику для предотвращения race condition
+    duel, has_active_duel = await _get_active_duel_with_retry(message.from_user.id)
 
     if has_active_duel:
         # Аудио в активном duel → продолжаем текущий раунд

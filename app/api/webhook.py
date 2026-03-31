@@ -4,9 +4,22 @@ from aiogram.types import Update
 
 from app.bot import build_dispatcher
 from app.config import settings
+from app.utils.locks import duel_lock_manager
 
 router = APIRouter(prefix="/telegram")
 dp = build_dispatcher()
+
+
+@router.on_event("startup")
+async def startup_event():
+    """Start background cleanup task for duel locks."""
+    duel_lock_manager.start_cleanup()
+
+
+@router.on_event("shutdown")
+async def shutdown_event():
+    """Stop background cleanup task for duel locks."""
+    duel_lock_manager.stop_cleanup()
 
 
 @router.post("/webhook")
