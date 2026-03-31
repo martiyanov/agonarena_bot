@@ -23,20 +23,18 @@ def build_in_duel_keyboard(round_no: int, duel_id: int) -> InlineKeyboardMarkup:
 
 
 def build_main_menu(has_active_duel: bool = False) -> ReplyKeyboardMarkup:
-    """Build main menu keyboard with dynamic buttons based on duel state.
-    
-    Note: END_ROUND_BUTTON removed from reply keyboard - now using inline buttons.
-    """
-    # Keyboard is the same for both states now - END_ROUND moved to inline
-    keyboard = [
-        [
-            KeyboardButton(text=SELECT_SCENARIO_BUTTON),
-        ],
-        [
-            KeyboardButton(text=RULES_BUTTON),
-            KeyboardButton(text=FEEDBACK_BUTTON),
-        ],
-    ]
+    """Build main menu keyboard with dynamic buttons based on duel state."""
+    if has_active_duel:
+        keyboard = [
+            [KeyboardButton(text=END_ROUND_BUTTON)],
+            [KeyboardButton(text=SELECT_SCENARIO_BUTTON)],
+            [KeyboardButton(text=RULES_BUTTON), KeyboardButton(text=FEEDBACK_BUTTON)],
+        ]
+    else:
+        keyboard = [
+            [KeyboardButton(text=SELECT_SCENARIO_BUTTON)],
+            [KeyboardButton(text=RULES_BUTTON), KeyboardButton(text=FEEDBACK_BUTTON)],
+        ]
     
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
